@@ -109,7 +109,7 @@ func TestSweep_PricesABoundRequestOntoItsPage(t *testing.T) {
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
 
-	if err := st.BindAISpend(ctx, "req-1", pg, ws, "docs-ai-write"); err != nil {
+	if err := st.BindAISpend(ctx, "req-1", pg, ws, ws, "docs-ai-write"); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 	f := newFakeLensSpend(t)
@@ -143,7 +143,7 @@ func TestSweep_RerunningDoesNotDoubleCharge(t *testing.T) {
 	st := page.NewStore(d.Pool)
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
-	_ = st.BindAISpend(ctx, "req-dup", pg, ws, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-dup", pg, ws, ws, "docs-ai-write")
 
 	f := newFakeLensSpend(t)
 	f.setRows(ws, spendRow("req-dup", 0.02, 100, 100))
@@ -170,8 +170,8 @@ func TestSweep_CoversEveryWorkspaceWithWork(t *testing.T) {
 	wsA, wsB := d.Workspace(t), d.Workspace(t)
 	pgA := d.Page(t, wsA, d.Member(t, wsA, "a@x.com"), "A")
 	pgB := d.Page(t, wsB, d.Member(t, wsB, "b@x.com"), "B")
-	_ = st.BindAISpend(ctx, "req-a", pgA, wsA, "docs-ai-write")
-	_ = st.BindAISpend(ctx, "req-b", pgB, wsB, "docs-ai-summarize")
+	_ = st.BindAISpend(ctx, "req-a", pgA, wsA, wsA, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-b", pgB, wsB, wsB, "docs-ai-summarize")
 
 	f := newFakeLensSpend(t)
 	f.setRows(wsA, spendRow("req-a", 0.03, 10, 10))
@@ -198,8 +198,8 @@ func TestSweep_OneWorkspaceFailingDoesNotStarveTheRest(t *testing.T) {
 	wsBad, wsGood := d.Workspace(t), d.Workspace(t)
 	pgBad := d.Page(t, wsBad, d.Member(t, wsBad, "a@x.com"), "Bad")
 	pgGood := d.Page(t, wsGood, d.Member(t, wsGood, "b@x.com"), "Good")
-	_ = st.BindAISpend(ctx, "req-bad", pgBad, wsBad, "docs-ai-write")
-	_ = st.BindAISpend(ctx, "req-good", pgGood, wsGood, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-bad", pgBad, wsBad, wsBad, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-good", pgGood, wsGood, wsGood, "docs-ai-write")
 
 	f := newFakeLensSpend(t)
 	f.fail(wsBad)
@@ -233,7 +233,7 @@ func TestSweep_IgnoresRequestsItNeverBound(t *testing.T) {
 	st := page.NewStore(d.Pool)
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
-	_ = st.BindAISpend(ctx, "req-ours", pg, ws, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-ours", pg, ws, ws, "docs-ai-write")
 
 	f := newFakeLensSpend(t)
 	f.setRows(ws,
@@ -263,7 +263,7 @@ func TestSweep_LinkedIssueOverwriteNeverErasesAccumulatedOwnCost(t *testing.T) {
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
 
-	_ = st.BindAISpend(ctx, "req-x", pg, ws, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-x", pg, ws, ws, "docs-ai-write")
 	f := newFakeLensSpend(t)
 	f.setRows(ws, spendRow("req-x", 0.04, 10, 10))
 	s := syncerFor(f, st)
@@ -274,7 +274,7 @@ func TestSweep_LinkedIssueOverwriteNeverErasesAccumulatedOwnCost(t *testing.T) {
 		t.Fatalf("UpdateAICost: %v", err)
 	}
 	// More AI work arrives afterwards and must still accumulate.
-	_ = st.BindAISpend(ctx, "req-y", pg, ws, "docs-ai-summarize")
+	_ = st.BindAISpend(ctx, "req-y", pg, ws, ws, "docs-ai-summarize")
 	f.setRows(ws, spendRow("req-x", 0.04, 10, 10), spendRow("req-y", 0.06, 10, 10))
 	s.Sync(ctx)
 
@@ -298,7 +298,7 @@ func TestSweep_DoesNotPullWorkspacesWithNothingWaiting(t *testing.T) {
 	st := page.NewStore(d.Pool)
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
-	_ = st.BindAISpend(ctx, "req-once", pg, ws, "docs-ai-write")
+	_ = st.BindAISpend(ctx, "req-once", pg, ws, ws, "docs-ai-write")
 
 	f := newFakeLensSpend(t)
 	f.setRows(ws, spendRow("req-once", 0.01, 10, 10))
@@ -309,5 +309,27 @@ func TestSweep_DoesNotPullWorkspacesWithNothingWaiting(t *testing.T) {
 	s.Sync(ctx) // nothing unpriced remains
 	if f.pullCount(ws) != after {
 		t.Errorf("the sweep pulled a workspace with no unpriced bindings (%d → %d)", after, f.pullCount(ws))
+	}
+}
+
+// B17.211: a call billed to the caller's Lens workspace is priced from THAT workspace's spend —
+// the sweep pulls under its token and never asks under the Docs workspace, which Lens does not know.
+func TestSweep_PricesUnderTheLensWorkspaceTheCallWasBilledTo(t *testing.T) {
+	d := testutil.New(t)
+	ctx := context.Background()
+	st := page.NewStore(d.Pool)
+	ws := d.Workspace(t)
+	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
+	if err := st.BindAISpend(ctx, "req-lens", pg, ws, "u-lens", "docs-ai-summarize"); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	f := newFakeLensSpend(t)
+	f.setRows("u-lens", spendRow("req-lens", 0.004, 300, 100))
+	syncerFor(f, st).Sync(ctx)
+	if got := ownCost(t, d, pg); got < 0.004-1e-9 || got > 0.004+1e-9 {
+		t.Fatalf("own_ai_cost_usd = %v, want 0.004 priced from the Lens workspace the call was billed to", got)
+	}
+	if n := f.pullCount(ws); n != 0 {
+		t.Fatalf("the sweep pulled spend under the Docs workspace %d time(s); Lens has no such workspace", n)
 	}
 }

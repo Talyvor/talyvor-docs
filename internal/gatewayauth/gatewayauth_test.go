@@ -34,3 +34,23 @@ func TestMiddleware_UnsetSecretRefusesEveryRequest(t *testing.T) {
 		})
 	}
 }
+
+// B17.211: the gateway names the caller's Lens workspace, and it is read only once the proof holds
+// — it decides whose money a Lens call moves.
+func TestMiddleware_LiftsTheCallersLensWorkspaceBehindTheProof(t *testing.T) {
+	var seen Identity
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen, _ = IdentityFrom(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+	h := Middleware("the-secret", nil)(next)
+	req := httptest.NewRequest(http.MethodPost, "/v1/workspaces/ws-1/ai/ask", nil)
+	req.Header.Set(HeaderGatewayAuth, "the-secret")
+	req.Header.Set(HeaderUserEmail, "a@x.com")
+	req.Header.Set(HeaderWorkspace, "u-lens")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || seen.LensWorkspace != "u-lens" {
+		t.Fatalf("status %d, identity %+v — want 200 and LensWorkspace u-lens", rec.Code, seen)
+	}
+}

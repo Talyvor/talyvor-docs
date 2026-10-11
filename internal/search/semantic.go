@@ -382,7 +382,8 @@ func (s *SemanticSearch) embed(ctx context.Context, workspaceID, text string) ([
 	if s.tokens == nil {
 		return nil, errors.New("search: no token provider wired")
 	}
-	tok, err := s.tokens.TokenFor(ctx, workspaceID)
+	billTo := lensintegration.BillingWorkspace(ctx, workspaceID) // a search is the caller's call; an index run has no caller
+	tok, err := s.tokens.TokenFor(ctx, billTo)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrTokenUnavailable, err)
 	}
@@ -398,7 +399,7 @@ func (s *SemanticSearch) embed(ctx context.Context, workspaceID, text string) ([
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("X-Talyvor-Feature", "docs-search")
-	req.Header.Set("X-Talyvor-Workspace", workspaceID) // observability label; the JWT is authoritative
+	req.Header.Set("X-Talyvor-Workspace", billTo) // observability label; the JWT is authoritative
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {

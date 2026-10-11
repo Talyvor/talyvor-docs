@@ -31,7 +31,7 @@ func TestOwnAICost_AnAIOperationLandsOnItsPage(t *testing.T) {
 	s := store(t, d)
 
 	// Call time: Docs knows the page and Lens's request id. No cost yet — Docs must not guess one.
-	if err := s.BindAISpend(ctx, "req-abc", pageID, ws, "docs-ai-summarize"); err != nil {
+	if err := s.BindAISpend(ctx, "req-abc", pageID, ws, ws, "docs-ai-summarize"); err != nil {
 		t.Fatalf("BindAISpend: %v", err)
 	}
 	if got, err := s.OwnAICost(ctx, pageID); err != nil || got != 0 {
@@ -94,7 +94,7 @@ func TestOwnAICost_RepricingTheSameRequestCreditsNothing(t *testing.T) {
 	pageID := d.Page(t, ws, author, "Runbook")
 	s := store(t, d)
 
-	if err := s.BindAISpend(ctx, "req-dup", pageID, ws, "docs-ai-write"); err != nil {
+	if err := s.BindAISpend(ctx, "req-dup", pageID, ws, ws, "docs-ai-write"); err != nil {
 		t.Fatalf("BindAISpend: %v", err)
 	}
 	if _, err := s.PriceAISpend(ctx, "req-dup", 0.01, 100); err != nil {
@@ -126,7 +126,7 @@ func TestOwnAICost_RebindingIsIdempotent(t *testing.T) {
 	s := store(t, d)
 
 	for i := 0; i < 3; i++ {
-		if err := s.BindAISpend(ctx, "req-retry", pageID, ws, "docs-ai-title"); err != nil {
+		if err := s.BindAISpend(ctx, "req-retry", pageID, ws, ws, "docs-ai-title"); err != nil {
 			t.Fatalf("bind %d: %v", i, err)
 		}
 	}
@@ -151,7 +151,7 @@ func TestOwnAICost_LinkedIssueSweepDoesNotEraseTheOwnCost(t *testing.T) {
 	pageID := d.Page(t, ws, author, "Runbook")
 	s := store(t, d)
 
-	if err := s.BindAISpend(ctx, "req-sep", pageID, ws, "docs-ai-write"); err != nil {
+	if err := s.BindAISpend(ctx, "req-sep", pageID, ws, ws, "docs-ai-write"); err != nil {
 		t.Fatalf("BindAISpend: %v", err)
 	}
 	if _, err := s.PriceAISpend(ctx, "req-sep", 0.05, 200); err != nil {

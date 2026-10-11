@@ -26,6 +26,10 @@ const (
 	HeaderUserID      = "X-User-Id"      // JWT sub — auth-system user id (NOT a Docs member id)
 	HeaderUserTeams   = "X-User-Teams"   // JWT teams claim, comma-separated
 	HeaderAuthIss     = "X-Auth-Iss"     // JWT issuer
+	// HeaderWorkspace names the caller's Lens workspace — what every Lens call made on the request
+	// is billed to (B17.211). A gateway SETS it from the session, like the identity headers above;
+	// one that passed a client's through would let a caller bill someone else's workspace.
+	HeaderWorkspace = "X-Talyvor-Workspace"
 )
 
 // Identity is the gateway-verified caller identity. It is placed in context ONLY after the
@@ -35,6 +39,10 @@ type Identity struct {
 	UserID string
 	Teams  string
 	Issuer string
+	// LensWorkspace is the caller's Lens workspace, the one that pays for every Lens call made on
+	// this request. Empty when the gateway named none: the Docs workspace in the path pays, which
+	// is Track's id for it and no Lens workspace — Lens refuses that 402 since its B17.132.
+	LensWorkspace string
 }
 
 type ctxKey struct{}
@@ -90,6 +98,8 @@ func Middleware(secret string, exempt func(path string) bool) func(http.Handler)
 				UserID: r.Header.Get(HeaderUserID),
 				Teams:  r.Header.Get(HeaderUserTeams),
 				Issuer: r.Header.Get(HeaderAuthIss),
+				// Read after the proof, like the identity: it decides whose money moves.
+				LensWorkspace: r.Header.Get(HeaderWorkspace),
 			}
 			next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 		})

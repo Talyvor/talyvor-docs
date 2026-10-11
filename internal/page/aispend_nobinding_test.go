@@ -46,7 +46,7 @@ func TestOwnAICost_NeverBoundIsDistinguishableFromAlreadyPriced(t *testing.T) {
 	pageID := d.Page(t, ws, author, "Runbook")
 	s := store(t, d)
 
-	if err := s.BindAISpend(ctx, "req-ours", pageID, ws, "docs-ai-summarize"); err != nil {
+	if err := s.BindAISpend(ctx, "req-ours", pageID, ws, ws, "docs-ai-summarize"); err != nil {
 		t.Fatalf("BindAISpend: %v", err)
 	}
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/talyvor/docs/internal/gatewayauth"
 	"github.com/talyvor/docs/internal/lenscreds"
 )
 
@@ -199,5 +200,24 @@ func TestComplete_HandlesEmptyContent(t *testing.T) {
 	}
 	if !strings.HasPrefix(out, "") || out != "" {
 		t.Fatalf("want empty string, got %q", out)
+	}
+}
+
+// B17.211: a call made on a request the gateway attributed to a Lens workspace is billed there —
+// the bearer is minted for it and the label names it — not to the Docs workspace, which is Track's
+// id and no Lens workspace (Lens answers 402 for that since its B17.132).
+func TestComplete_BillsTheCallersLensWorkspace(t *testing.T) {
+	srv := newFakeLens()
+	defer srv.Close()
+	c := meteredFakeClient(srv.URL)
+	ctx := gatewayauth.WithIdentity(context.Background(), gatewayauth.Identity{Email: "a@x.com", LensWorkspace: "u-lens"})
+	if _, err := c.Complete(ctx, "ws-docs", "Hello", "You are helpful", "claude-haiku-4-5"); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if got := claimWS(strings.TrimPrefix(srv.lastHeaders.Get("Authorization"), "Bearer ")); got != "u-lens" {
+		t.Fatalf("bearer minted for %q, want the caller's Lens workspace u-lens", got)
+	}
+	if got := srv.lastHeaders.Get("X-Talyvor-Workspace"); got != "u-lens" {
+		t.Fatalf("workspace label %q, want u-lens", got)
 	}
 }

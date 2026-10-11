@@ -82,10 +82,10 @@ func TestSweep_ACacheServeIsDistinguishableFromAGenuinelyFreeUpstreamCall(t *tes
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
 
-	if err := st.BindAISpend(ctx, "req-upstream", pg, ws, "docs-ai-summarize"); err != nil {
+	if err := st.BindAISpend(ctx, "req-upstream", pg, ws, ws, "docs-ai-summarize"); err != nil {
 		t.Fatalf("bind upstream: %v", err)
 	}
-	if err := st.BindAISpend(ctx, "req-cached", pg, ws, "docs-ai-summarize"); err != nil {
+	if err := st.BindAISpend(ctx, "req-cached", pg, ws, ws, "docs-ai-summarize"); err != nil {
 		t.Fatalf("bind cached: %v", err)
 	}
 
@@ -141,7 +141,7 @@ func TestSweep_RecordsTheServeSourceLensReported(t *testing.T) {
 	st := page.NewStore(d.Pool)
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
-	if err := st.BindAISpend(ctx, "req-c1", pg, ws, "docs-ai-write"); err != nil {
+	if err := st.BindAISpend(ctx, "req-c1", pg, ws, ws, "docs-ai-write"); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 
@@ -170,7 +170,7 @@ func TestSweep_ARowWithNoServeSourceIsRecordedAsUnreportedNotUpstream(t *testing
 	st := page.NewStore(d.Pool)
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
-	if err := st.BindAISpend(ctx, "req-old", pg, ws, "docs-ai-write"); err != nil {
+	if err := st.BindAISpend(ctx, "req-old", pg, ws, ws, "docs-ai-write"); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 
@@ -200,7 +200,7 @@ func TestSweep_RecordingTheServeSourceChangesNoMoney(t *testing.T) {
 	st := page.NewStore(d.Pool)
 	ws := d.Workspace(t)
 	pg := d.Page(t, ws, d.Member(t, ws, "a@x.com"), "Runbook")
-	if err := st.BindAISpend(ctx, "req-money", pg, ws, "docs-ai-write"); err != nil {
+	if err := st.BindAISpend(ctx, "req-money", pg, ws, ws, "docs-ai-write"); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 

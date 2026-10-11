@@ -60,7 +60,7 @@ func seedSplitPage(t *testing.T, d *testutil.DB, store *page.Store, ws, owner, p
 	ctx := context.Background()
 	spend := func(reqID string, usd float64) {
 		t.Helper()
-		if err := store.BindAISpend(ctx, reqID, pageID, ws, "draft"); err != nil {
+		if err := store.BindAISpend(ctx, reqID, pageID, ws, ws, "draft"); err != nil {
 			t.Fatalf("bind %s: %v", reqID, err)
 		}
 		landed, err := store.PriceAISpend(ctx, reqID, usd, 100)

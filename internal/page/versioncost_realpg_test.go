@@ -68,7 +68,7 @@ func TestVersionHistory_ReportsTheAICostAttributedToEachRevision_RealPG(t *testi
 	// revision, or to the oldest, or summed them all onto one, gives a different answer to each.
 	spend := func(reqID string, usd float64) {
 		t.Helper()
-		if err := store.BindAISpend(ctx, reqID, pageID, ws, "draft"); err != nil {
+		if err := store.BindAISpend(ctx, reqID, pageID, ws, ws, "draft"); err != nil {
 			t.Fatalf("bind %s: %v", reqID, err)
 		}
 		landed, err := store.PriceAISpend(ctx, reqID, usd, 100)
@@ -263,7 +263,7 @@ func TestVersionCostSplit_RefusesAPageInAnotherWorkspace_RealPG(t *testing.T) {
 	victimWS := d.Workspace(t)
 	victim := d.Member(t, victimWS, "victim@corp.com")
 	pageID := d.Page(t, victimWS, victim, "Theirs")
-	if err := store.BindAISpend(ctx, "req-x", pageID, victimWS, "draft"); err != nil {
+	if err := store.BindAISpend(ctx, "req-x", pageID, victimWS, victimWS, "draft"); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 	if _, err := store.PriceAISpend(ctx, "req-x", 0.5000, 10); err != nil {
