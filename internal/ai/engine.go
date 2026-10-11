@@ -50,7 +50,9 @@ var ErrUnavailable = errors.New("ai: lens unavailable")
 // behaves exactly as before and no attribution is recorded, which is what a bare test mount and
 // any deployment without the page store get.
 type AISpendBinder interface {
-	BindAISpend(ctx context.Context, requestID, pageID, workspaceID, operation string) error
+	// billedTo is the Lens workspace the call was charged to (lensintegration.BillingWorkspace);
+	// the sweep prices the request under that workspace's token.
+	BindAISpend(ctx context.Context, requestID, pageID, workspaceID, billedTo, operation string) error
 }
 
 type Engine struct {
@@ -108,7 +110,7 @@ func (e *Engine) run(ctx context.Context, workspaceID, system, user, model, feat
 		return "", err
 	}
 	if e.binder != nil && pageID != "" && reqID != "" {
-		if bErr := e.binder.BindAISpend(ctx, reqID, pageID, workspaceID, feature); bErr != nil {
+		if bErr := e.binder.BindAISpend(ctx, reqID, pageID, workspaceID, lensintegration.BillingWorkspace(ctx, workspaceID), feature); bErr != nil {
 			slog.Warn("ai: page spend binding failed — this operation's cost will not be attributed",
 				slog.String("workspace_id", workspaceID),
 				slog.String("page_id", pageID),

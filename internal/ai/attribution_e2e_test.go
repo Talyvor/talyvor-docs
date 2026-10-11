@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/talyvor/docs/internal/gatewayauth"
 )
 
 // ⚠ THE END-TO-END RED: A DOCUMENT'S OWN AI COST MUST REACH THAT DOCUMENT.
@@ -31,12 +33,12 @@ type recordingBinder struct {
 	binds []bindCall
 }
 
-type bindCall struct{ requestID, pageID, workspaceID, operation string }
+type bindCall struct{ requestID, pageID, workspaceID, billedTo, operation string }
 
-func (b *recordingBinder) BindAISpend(_ context.Context, requestID, pageID, workspaceID, operation string) error {
+func (b *recordingBinder) BindAISpend(_ context.Context, requestID, pageID, workspaceID, billedTo, operation string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.binds = append(b.binds, bindCall{requestID, pageID, workspaceID, operation})
+	b.binds = append(b.binds, bindCall{requestID, pageID, workspaceID, billedTo, operation})
 	return nil
 }
 
@@ -193,6 +195,26 @@ func TestAttribution_BindFailureDoesNotFailTheRequest(t *testing.T) {
 
 type failingBinder struct{}
 
-func (failingBinder) BindAISpend(context.Context, string, string, string, string) error {
+func (failingBinder) BindAISpend(context.Context, string, string, string, string, string) error {
 	return errors.New("ledger unavailable")
+}
+
+// B17.211: the binding records the Lens workspace the call was billed to — the caller's, named by
+// the gateway — beside the page's own workspace, so the sweep prices it under the right token.
+func TestAttribution_RecordsTheLensWorkspaceTheCallWasBilledTo(t *testing.T) {
+	srv := lensStub(t, "req-billed")
+	b := &recordingBinder{}
+	r := newRouter(New(meteredLensClient(srv.URL)).WithSpendBinder(b), &fakePages{})
+	req := httptest.NewRequest(http.MethodPost, "/v1/workspaces/ws-1/ai/transform",
+		strings.NewReader(`{"action":"summarize","text":"hello","page_id":"pg-sum"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(gatewayauth.WithIdentity(req.Context(), gatewayauth.Identity{Email: "u@ws1.com", LensWorkspace: "u-lens"}))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := b.all(); len(got) != 1 || got[0].workspaceID != "ws-1" || got[0].billedTo != "u-lens" {
+		t.Fatalf("bound %+v, want one binding on ws-1 billed to u-lens", got)
+	}
 }

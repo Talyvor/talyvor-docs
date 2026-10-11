@@ -106,7 +106,7 @@ func TestPricedAISpend_DoesNotResetTheStalenessClock_RealPG(t *testing.T) {
 	// A READ-ONLY AI operation: the user asked for a summary. internal/ai Engine.Summarize
 	// binds exactly this. Nothing about the document changed.
 	const reqID = "lens-req-summarize-0001"
-	if err := store.BindAISpend(ctx, reqID, pageID, ws, "docs-ai-summarize"); err != nil {
+	if err := store.BindAISpend(ctx, reqID, pageID, ws, ws, "docs-ai-summarize"); err != nil {
 		t.Fatalf("BindAISpend: %v", err)
 	}
 	if got := updatedAt(); !got.Equal(before) {

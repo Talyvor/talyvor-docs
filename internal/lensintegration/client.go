@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/talyvor/docs/internal/gatewayauth"
 )
 
 // Timeout caps every individual Lens round-trip. Generations longer
@@ -150,6 +152,19 @@ func (c *Client) CompleteWithRequestID(ctx context.Context, workspaceID, prompt,
 	return out, reqID, err
 }
 
+// BillingWorkspace is the Lens workspace a call made for workspaceID is charged to: the caller's
+// own Lens workspace when the gateway named one on this request (gatewayauth.HeaderWorkspace),
+// otherwise workspaceID itself. A Docs workspace is Track's id for it and no Lens workspace: since
+// Lens's B17.132 a call on its token is refused 402 "not enough credit" — the e2e run of 2026-10-11
+// saw every summary, translation and Ask fail that way (B17.211). Background work — the save-time
+// indexer, the cost sweep — carries no caller and keeps the Docs id.
+func BillingWorkspace(ctx context.Context, workspaceID string) string {
+	if id, ok := gatewayauth.IdentityFrom(ctx); ok && id.LensWorkspace != "" {
+		return id.LensWorkspace
+	}
+	return workspaceID
+}
+
 func (c *Client) post(ctx context.Context, path, workspaceID, feature string, body map[string]any) ([]byte, error) {
 	raw, _, err := c.postWithRequestID(ctx, path, workspaceID, feature, body)
 	return raw, err
@@ -167,9 +182,10 @@ func (c *Client) postWithRequestID(ctx context.Context, path, workspaceID, featu
 	if c.tokens == nil {
 		return nil, "", errors.New("lens: no token provider wired")
 	}
-	tok, err := c.tokens.TokenFor(ctx, workspaceID)
+	billTo := BillingWorkspace(ctx, workspaceID)
+	tok, err := c.tokens.TokenFor(ctx, billTo)
 	if err != nil {
-		return nil, "", fmt.Errorf("lens: token for %q: %w", workspaceID, err)
+		return nil, "", fmt.Errorf("lens: token for %q: %w", billTo, err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.lensURL+path, bytes.NewReader(enc))
 	if err != nil {
@@ -178,7 +194,7 @@ func (c *Client) postWithRequestID(ctx context.Context, path, workspaceID, featu
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("X-Talyvor-Feature", feature)
-	req.Header.Set("X-Talyvor-Workspace", workspaceID)
+	req.Header.Set("X-Talyvor-Workspace", billTo)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

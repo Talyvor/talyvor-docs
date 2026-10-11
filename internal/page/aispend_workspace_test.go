@@ -67,7 +67,7 @@ func TestBindAISpend_RefusesAPageOutsideTheBilledWorkspace(t *testing.T) {
 
 	// ── THE HONEST BINDING, FIRST AND UNCONDITIONALLY. A fix that refuses everything passes
 	// every refusal assertion below and fails here.
-	if err := s.BindAISpend(ctx, "req-honest", pageA, wsA, "docs-ai-write"); err != nil {
+	if err := s.BindAISpend(ctx, "req-honest", pageA, wsA, wsA, "docs-ai-write"); err != nil {
 		t.Fatalf("[P-HONEST] binding a page to its OWN workspace failed: %v", err)
 	}
 	if n := rows(t, pageA); n != 1 {
@@ -75,7 +75,7 @@ func TestBindAISpend_RefusesAPageOutsideTheBilledWorkspace(t *testing.T) {
 	}
 
 	// ── THE MISMATCH.
-	err := s.BindAISpend(ctx, "req-cross", pageB, wsA, "docs-ai-write")
+	err := s.BindAISpend(ctx, "req-cross", pageB, wsA, wsA, "docs-ai-write")
 	if !errors.Is(err, page.ErrPageWorkspaceMismatch) {
 		t.Errorf("[P-REFUSED] BindAISpend(page in %s, billed to %s) = %v, want ErrPageWorkspaceMismatch — "+
 			"the row would say workspace %s paid for work on a document in workspace %s, and "+
@@ -130,17 +130,17 @@ func TestBindAISpend_MismatchIsDistinguishableFromAReBind(t *testing.T) {
 	pageB := d.Page(t, wsB, bob, "B Roadmap")
 	s := page.NewStore(d.Pool)
 
-	if err := s.BindAISpend(ctx, "req-1", pageA, wsA, "docs-ai-write"); err != nil {
+	if err := s.BindAISpend(ctx, "req-1", pageA, wsA, wsA, "docs-ai-write"); err != nil {
 		t.Fatalf("first bind: %v", err)
 	}
 	// The re-bind writes NO row and must still report success — the sync re-reads an overlapping
 	// window by design.
-	if err := s.BindAISpend(ctx, "req-1", pageA, wsA, "docs-ai-write"); err != nil {
+	if err := s.BindAISpend(ctx, "req-1", pageA, wsA, wsA, "docs-ai-write"); err != nil {
 		t.Errorf("[P-REBIND] re-binding the same request returned %v, want nil — a retried handler "+
 			"or a duplicate request id must record once and report success", err)
 	}
 	// The mismatch also writes NO row and must NOT report success.
-	if err := s.BindAISpend(ctx, "req-2", pageB, wsA, "docs-ai-write"); !errors.Is(err, page.ErrPageWorkspaceMismatch) {
+	if err := s.BindAISpend(ctx, "req-2", pageB, wsA, wsA, "docs-ai-write"); !errors.Is(err, page.ErrPageWorkspaceMismatch) {
 		t.Errorf("[P-DISTINCT] a cross-workspace bind returned %v, want ErrPageWorkspaceMismatch — "+
 			"it writes zero rows for the same reason the re-bind above does, so any "+
 			"implementation that reads the row count reports both as the same outcome", err)

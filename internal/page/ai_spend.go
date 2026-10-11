@@ -48,9 +48,13 @@ var ErrPageWorkspaceMismatch = errors.New("page: the page named by an AI spend b
 // already affects zero rows for the ordinary re-bind, so a RowsAffected==0 branch would report
 // idempotence and a refused mismatch as the same outcome — and the mismatch is the one that must
 // be loud. `ok` counts the page rows that satisfied the join, so it separates them.
-func (s *Store) BindAISpend(ctx context.Context, requestID, pageID, workspaceID, operation string) error {
-	if requestID == "" || pageID == "" || workspaceID == "" || operation == "" {
-		return errors.New("page: BindAISpend requires request_id, page_id, workspace_id, operation")
+//
+// billedTo is the Lens workspace the call was charged to (B17.211): the caller's own, named by the
+// gateway, or workspaceID when nothing named one. workspaceID stays the page's workspace — the
+// join below is what refuses a page outside it.
+func (s *Store) BindAISpend(ctx context.Context, requestID, pageID, workspaceID, billedTo, operation string) error {
+	if requestID == "" || pageID == "" || workspaceID == "" || billedTo == "" || operation == "" {
+		return errors.New("page: BindAISpend requires request_id, page_id, workspace_id, billed_to, operation")
 	}
 	var ok int
 	if err := s.pool.QueryRow(ctx, `
@@ -58,8 +62,8 @@ func (s *Store) BindAISpend(ctx context.Context, requestID, pageID, workspaceID,
             SELECT 1 FROM pages WHERE id = $2 AND workspace_id = $3
         ),
         ins AS (
-            INSERT INTO page_ai_spend_events (request_id, page_id, workspace_id, operation, page_version)
-            SELECT $1, $2, $3, $4,
+            INSERT INTO page_ai_spend_events (request_id, page_id, workspace_id, billed_to, operation, page_version)
+            SELECT $1, $2, $3, $5, $4,
                    -- ⚠ MAX + 1: the revision this work is GOING INTO, not the one it came after.
                    -- page_versions row N is the state AFTER save N (measured, not read — see
                    -- migrations/0021), so the spend that produced revision N is bound while
@@ -71,7 +75,7 @@ func (s *Store) BindAISpend(ctx context.Context, requestID, pageID, workspaceID,
             RETURNING 1
         )
         SELECT count(*) FROM ok`,
-		requestID, pageID, workspaceID, operation,
+		requestID, pageID, workspaceID, operation, billedTo,
 	).Scan(&ok); err != nil {
 		return fmt.Errorf("page: bind ai spend: %w", err)
 	}
@@ -167,9 +171,11 @@ func (s *Store) PriceAISpendWithServeSource(ctx context.Context, requestID strin
 	return updated > 0, nil
 }
 
-// UnpricedRequestIDs returns the bindings still awaiting a price for one workspace, newest first.
-// The sync uses it to decide which of Lens's per-request rows are worth looking at — Docs is one
-// of several tenants of a Lens workspace, so most rows in a pull belong to something else.
+// UnpricedRequestIDs returns the bindings still awaiting a price for one Lens workspace — the one
+// the calls were billed to (a row bound before billed_to existed was billed to its own workspace)
+// — newest first. The sync uses it to decide which of Lens's per-request rows are worth looking at
+// — Docs is one of several tenants of a Lens workspace, so most rows in a pull belong to
+// something else.
 func (s *Store) UnpricedRequestIDs(ctx context.Context, workspaceID string, limit int) ([]string, error) {
 	if workspaceID == "" {
 		return nil, errors.New("page: UnpricedRequestIDs requires workspace_id")
@@ -179,7 +185,7 @@ func (s *Store) UnpricedRequestIDs(ctx context.Context, workspaceID string, limi
 	}
 	rows, err := s.pool.Query(ctx, `
         SELECT request_id FROM page_ai_spend_events
-         WHERE workspace_id = $1 AND cost_usd IS NULL
+         WHERE COALESCE(billed_to, workspace_id) = $1 AND cost_usd IS NULL
          ORDER BY created_at DESC LIMIT $2`, workspaceID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("page: unpriced request ids: %w", err)
@@ -207,7 +213,8 @@ func (s *Store) OwnAICost(ctx context.Context, pageID string) (float64, error) {
 	return v, nil
 }
 
-// UnpricedWorkspaces returns the workspaces that have bindings still awaiting a price.
+// UnpricedWorkspaces returns the Lens workspaces that have bindings still awaiting a price: the
+// workspaces the calls were billed to, which is whose token the sweep must pull spend with.
 //
 // ⚠ THE WORKSPACE LIST COMES FROM THE DATA, not from configuration. That is deliberate and it is
 // what makes the pricing sweep structurally incapable of the single-workspace bug #51 fixed in the
@@ -217,8 +224,8 @@ func (s *Store) UnpricedWorkspaces(ctx context.Context, limit int) ([]string, er
 		limit = 200
 	}
 	rows, err := s.pool.Query(ctx, `
-        SELECT DISTINCT workspace_id FROM page_ai_spend_events
-         WHERE cost_usd IS NULL ORDER BY workspace_id LIMIT $1`, limit)
+        SELECT DISTINCT COALESCE(billed_to, workspace_id) AS payer FROM page_ai_spend_events
+         WHERE cost_usd IS NULL ORDER BY payer LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("page: unpriced workspaces: %w", err)
 	}
