@@ -318,6 +318,9 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          # Lowercase on purpose. Since 12 Oct 2026 this repository belongs to the GitHub organisation
+          # whose login is "Talyvor" (capital T), and Docker refuses an image name with a capital letter,
+          # so github.repository_owner can no longer be used here. The packages live at ghcr.io/talyvor.
           tags: |
-            ghcr.io/${{ github.repository_owner }}/talyvor-docs:latest
-            ghcr.io/${{ github.repository_owner }}/talyvor-docs:${{ github.sha }}
+            ghcr.io/talyvor/talyvor-docs:latest
+            ghcr.io/talyvor/talyvor-docs:${{ github.sha }}
