@@ -43,19 +43,22 @@ func (s *Sink) Emit(ctx context.Context, wsID, eventType string, data map[string
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	// Reads the stored request, never the event data: a reviewer is addressed only through this workspace's
-	// roster, and nobody is mailed about a request they made themselves.
+	// roster, and nobody is mailed about a request they made themselves. The message is what the approvals
+	// inbox already shows them; a private space's page title is not, so it stays out of the mail.
 	tag, err := s.pool.Exec(ctx, `
 		INSERT INTO notification_outbox (workspace_id, member_id, kind, to_email, subject, body)
 		SELECT r.workspace_id, m.member_id, $3, m.email,
-		       'Your approval is requested: ' || p.title,
+		       'Your approval is requested: ' || CASE WHEN sp.private THEN 'a page in a private space' ELSE p.title END,
 		       coalesce((SELECT a.email FROM workspace_members a
 		                 WHERE a.workspace_id = r.workspace_id AND a.member_id = r.requested_by LIMIT 1), 'Someone')
-		           || ' asked you to approve "' || p.title || '" in Talyvor Docs.'
+		           || ' asked you to approve ' || CASE WHEN sp.private THEN 'a page in a private space' ELSE '"' || p.title || '"' END
+		           || ' in Talyvor Docs.'
 		           || CASE WHEN r.message <> '' THEN E'\n\n' || r.message ELSE '' END
 		           || CASE WHEN r.due_date IS NOT NULL THEN E'\n\nDue ' || to_char(r.due_date AT TIME ZONE 'UTC', 'DD Mon YYYY') ELSE '' END
 		           || E'\n\nIt is waiting in your approvals inbox.'
 		FROM approval_requests r
 		JOIN pages p ON p.id = r.page_id AND p.workspace_id = r.workspace_id
+		JOIN spaces sp ON sp.id = p.space_id AND sp.workspace_id = r.workspace_id
 		JOIN review_decisions d ON d.request_id = r.id
 		JOIN workspace_members m ON m.workspace_id = r.workspace_id AND m.member_id = d.reviewer_id
 		WHERE r.workspace_id = $1 AND r.id = $2 AND d.reviewer_id <> r.requested_by

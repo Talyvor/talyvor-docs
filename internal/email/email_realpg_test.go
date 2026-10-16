@@ -187,6 +187,32 @@ func TestApprovalRequestMailsEachReviewerOnceAcrossARestart_RealPG(t *testing.T)
 	}
 }
 
+func TestMailLeavesOutAPrivateSpacesPageTitle_RealPG(t *testing.T) {
+	d := testutil.New(t)
+	ctx := context.Background()
+	ws := d.Workspace(t)
+	alice := member{"alice@corp.com", d.Member(t, ws, "alice@corp.com")}
+	carol := member{"carol@corp.com", d.Member(t, ws, "carol@corp.com")}
+	pageID := d.Page(t, ws, alice.id, "Layoff Plan")
+	var spaceID string
+	if err := d.Pool.QueryRow(ctx, `UPDATE spaces SET private = true WHERE id = (SELECT space_id FROM pages WHERE id=$1) RETURNING id`,
+		pageID).Scan(&spaceID); err != nil {
+		t.Fatal(err)
+	}
+	stub, got := smtpStub(t)
+	sink := email.NewSink(d.Pool, stub)
+	if rr := chain(d, ws, sink)(alice, "POST", "/v1/spaces/"+spaceID+"/pages/"+pageID+"/approval",
+		`{"reviewers":["`+carol.id+`"]}`); rr.Code != http.StatusCreated {
+		t.Fatalf("POST approval = %d %s", rr.Code, rr.Body.String())
+	}
+	if _, err := sink.SendDue(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if mails := got(); len(mails) != 1 || strings.Contains(mails[0], "Layoff Plan") || !strings.Contains(mails[0], "a page in a private space") {
+		t.Fatalf("mails = %q, want one that does not name the private page", mails)
+	}
+}
+
 func waitFor(t *testing.T, ok func() bool) {
 	t.Helper()
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
