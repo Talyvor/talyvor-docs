@@ -45,6 +45,7 @@ import (
 	"github.com/talyvor/docs/internal/db"
 	"github.com/talyvor/docs/internal/dbhealth"
 	"github.com/talyvor/docs/internal/editsession"
+	"github.com/talyvor/docs/internal/email"
 	"github.com/talyvor/docs/internal/export"
 	"github.com/talyvor/docs/internal/freshness"
 	"github.com/talyvor/docs/internal/gatewayauth"
@@ -312,15 +313,27 @@ func main() {
 	// which seals each endpoint's secret; without it the routes are not mounted. config.Load already
 	// refused a key that is not 32 bytes, so NewCipher fails here only when the key is unset.
 	var webhookHandler *webhooks.Handler
+	var approvalNotifiers teeNotifier
 	if webhookCipher, err := webhooks.NewCipher(cfg.WebhookEncryptionKey); err == nil {
 		webhookStore := webhooks.NewStore(pool, webhookCipher)
 		webhookHandler = webhooks.NewHandler(webhookStore)
 		webhookSink := webhooks.NewSink(webhookStore)
-		approvalHandler.WithNotifier(webhookSink)
+		approvalNotifiers = append(approvalNotifiers, webhookSink)
 		commentHandler.WithNotifier(webhookSink)
 		go webhookSink.Start(ctx, 30*time.Second)
 	} else {
 		slog.Info("webhooks: DOCS_WEBHOOK_ENCRYPTION_KEY unset — workspace webhooks disabled")
+	}
+	// B39.16: a reviewer is emailed when their approval is requested. Off unless DOCS_EMAIL_ENABLED.
+	if cfg.EmailEnabled {
+		mailSink := email.NewSink(pool, email.SMTP{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser,
+			Password: cfg.SMTPPassword, From: cfg.EmailFrom})
+		approvalNotifiers = append(approvalNotifiers, mailSink)
+		go mailSink.Start(ctx, 30*time.Second)
+		slog.Info("email: approval-request mail enabled", slog.String("smtp_host", cfg.SMTPHost))
+	}
+	if len(approvalNotifiers) > 0 {
+		approvalHandler.WithNotifier(approvalNotifiers)
 	}
 
 	// Changelog — specialised page type with auto-grouping from
@@ -752,6 +765,15 @@ func main() {
 // custom-domain public renderer needs. The full page.Store has a
 // PageFilter-based List; the adapter materialises a per-space slice
 // from it without leaking the filter type into customdomain.
+// teeNotifier sends each approval event to every sink (webhooks, email).
+type teeNotifier []approval.Notifier
+
+func (t teeNotifier) Emit(ctx context.Context, wsID, eventType string, data map[string]any) {
+	for _, n := range t {
+		n.Emit(ctx, wsID, eventType, data)
+	}
+}
+
 type publicPageAdapter struct{ pages *page.Store }
 
 func (a *publicPageAdapter) GetByID(ctx context.Context, id string) (*model.Page, error) {

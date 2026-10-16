@@ -91,6 +91,12 @@ var mainWiredConfig = map[string][]string{
 	"MaxImportBodyBytes":    {"bodylimit.Middleware()"},
 	"MetricsToken":          {"metrics.Handler()"},
 	"WebhookEncryptionKey":  {"webhooks.NewCipher()"},
+	"EmailEnabled":          {"if{}"},
+	"SMTPHost":              {"email.SMTP{}.Host"},
+	"SMTPPort":              {"email.SMTP{}.Port"},
+	"SMTPUser":              {"email.SMTP{}.User"},
+	"SMTPPassword":          {"email.SMTP{}.Password"},
+	"EmailFrom":             {"email.SMTP{}.From"},
 	"SearchRateBurst":       {"ratelimit.New()"},
 	"SearchRatePerMin":      {"ratelimit.New()"},
 	"SlogLevel":             {"cfg.SlogLevel()"},
@@ -221,6 +227,10 @@ func consumerOf(parent map[ast.Node]ast.Node, n ast.Node) (string, bool) {
 				return "", false
 			}
 			return name + "()", true
+		case *ast.IfStmt:
+			if x.Cond == cur { // `if cfg.EmailEnabled {`: the value switches the block it heads
+				return "if{}", true
+			}
 		case *ast.KeyValueExpr:
 			if cl, ok := parent[p].(*ast.CompositeLit); ok {
 				if key, ok := x.Key.(*ast.Ident); ok {
