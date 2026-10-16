@@ -90,6 +90,7 @@ var mainWiredConfig = map[string][]string{
 	"MaxBodyBytes":          {".WithReadLimit()", "bodylimit.Middleware()", "bodylimit.Middleware()"},
 	"MaxImportBodyBytes":    {"bodylimit.Middleware()"},
 	"MetricsToken":          {"metrics.Handler()"},
+	"WebhookEncryptionKey":  {"webhooks.NewCipher()"},
 	"SearchRateBurst":       {"ratelimit.New()"},
 	"SearchRatePerMin":      {"ratelimit.New()"},
 	"SlogLevel":             {"cfg.SlogLevel()"},

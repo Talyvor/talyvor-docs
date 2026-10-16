@@ -70,6 +70,7 @@ import (
 	"github.com/talyvor/docs/internal/team"
 	"github.com/talyvor/docs/internal/templatelib"
 	"github.com/talyvor/docs/internal/trackintegration"
+	"github.com/talyvor/docs/internal/webhooks"
 	"github.com/talyvor/docs/migrations"
 )
 
@@ -306,6 +307,21 @@ func main() {
 	// rework. The page handler no longer owns comment routes.
 	commentStore := comment.NewStore(pool)
 	commentHandler := comment.NewHandler(commentStore)
+
+	// Signed webhooks for approval and comment events (B39.14). Only with DOCS_WEBHOOK_ENCRYPTION_KEY,
+	// which seals each endpoint's secret; without it the routes are not mounted. config.Load already
+	// refused a key that is not 32 bytes, so NewCipher fails here only when the key is unset.
+	var webhookHandler *webhooks.Handler
+	if webhookCipher, err := webhooks.NewCipher(cfg.WebhookEncryptionKey); err == nil {
+		webhookStore := webhooks.NewStore(pool, webhookCipher)
+		webhookHandler = webhooks.NewHandler(webhookStore)
+		webhookSink := webhooks.NewSink(webhookStore)
+		approvalHandler.WithNotifier(webhookSink)
+		commentHandler.WithNotifier(webhookSink)
+		go webhookSink.Start(ctx, 30*time.Second)
+	} else {
+		slog.Info("webhooks: DOCS_WEBHOOK_ENCRYPTION_KEY unset — workspace webhooks disabled")
+	}
 
 	// Changelog — specialised page type with auto-grouping from
 	// Track issues + RSS feed.
@@ -685,6 +701,9 @@ func main() {
 		commentHandler.Mount(r)
 		changelogHandler.Mount(r)
 		domainHandler.Mount(r)
+		if webhookHandler != nil {
+			webhookHandler.Mount(r)
+		}
 	})
 
 	// DomainRouter wraps the chi tree. Requests on a verified

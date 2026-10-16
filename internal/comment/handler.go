@@ -1,6 +1,7 @@
 package comment
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,8 +13,22 @@ import (
 )
 
 type Handler struct {
-	store   *Store
-	pageEnf *permission.Enforcer // A3: comment routes gate on the parent page's access (nil => 404, fail-closed)
+	store    *Store
+	pageEnf  *permission.Enforcer // A3: comment routes gate on the parent page's access (nil => 404, fail-closed)
+	notifier Notifier
+}
+
+// Notifier receives each new comment after it is stored (internal/webhooks.Sink). It never fails the request.
+// The event carries ids, never the comment's text: the page may be in a private space the endpoint's owner
+// cannot read, so the receiver fetches it through the access-checked API.
+type Notifier interface {
+	Emit(ctx context.Context, wsID, eventType string, data map[string]any)
+}
+
+// WithNotifier sends comment.created to n.
+func (h *Handler) WithNotifier(n Notifier) *Handler {
+	h.notifier = n
+	return h
 }
 
 func NewHandler(store *Store) *Handler { return &Handler{store: store} }
@@ -114,6 +129,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if ws, ok := permission.WorkspaceFromContext(r.Context()); ok && h.notifier != nil {
+		h.notifier.Emit(r.Context(), ws, "comment.created", map[string]any{
+			"actor_id": c.AuthorID, "comment_id": c.ID, "page_id": c.PageID, "thread_id": c.ThreadID, "block_id": c.BlockID,
+		})
 	}
 	writeJSON(w, http.StatusCreated, c)
 }

@@ -102,6 +102,7 @@ var routeFloor = map[string]int{
 	"space":            5,
 	"templatelib":      4,
 	"trackintegration": 3,
+	"webhooks":         4,
 }
 
 // mainRoutes pins the routes registered DIRECTLY in cmd/docs/main.go rather than through a

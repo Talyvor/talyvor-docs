@@ -146,6 +146,7 @@ var ORDER_PREMISES = map[string]oexpected{
 	"internal/trackintegration/handler.go#Search":   {kindOrder, "AuthorizeWorkspace", 1, ""},
 	"internal/templatelib/handler.go#scopeFor":      {kindOrder, "AuthorizeWorkspace", 1, ""},
 	"internal/templatelib/handler.go#FromPage":      {kindOrder, "AuthorizeWorkspace", 1, "the write TARGET, not a read scope: the {wsID} that will OWN the new template. authz.WorkspaceIDs is read one line earlier for the SOURCE page's scope, so pinning the gate by name is what keeps the order rule pointed at the right call"},
+	"internal/webhooks/handler.go#owner":            {kindOrder, "AuthorizeWorkspace", 1, ""},
 	"internal/customdomain/handler.go#scopeFor":     {kindOrder, "WorkspaceIDs", 1, "the only row whose gate is not AuthorizeWorkspace: it tests membership with contains(authz.WorkspaceIDs(ctx), wsID). Its templatelib twin does the same job with the other primitive, which is why the gate is pinned per row and not assumed"},
 
 	// ── the param is consumed by the gate and by nothing else, and the reason says so.

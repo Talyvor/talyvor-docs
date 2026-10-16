@@ -105,6 +105,10 @@ var noEnforcer = map[string]enfRow{
 	"space POST /spaces":                                                    {reaches: "AuthorizeWorkspace", why: "creates the space; the workspace arrives in the body and is authorized there"},
 	"trackintegration GET /workspaces/{wsID}/track/search":                  {reaches: "AuthorizeWorkspace", why: "workspace-scoped proxy to Track"},
 	"trackintegration GET /workspaces/{wsID}/track/issues/{issueID}":        {reaches: "AuthorizeWorkspace", why: "the issue is Track's object, not a docs resource"},
+	"webhooks GET /workspaces/{wsID}/webhooks":                              {reaches: "AuthorizeWorkspace", why: "workspace-level object; the handler also refuses any role but owner (B39.14)"},
+	"webhooks POST /workspaces/{wsID}/webhooks":                             {reaches: "AuthorizeWorkspace", why: "workspace-level object; owner only (B39.14)"},
+	"webhooks POST /workspaces/{wsID}/webhooks/{id}/rotate":                 {reaches: "AuthorizeWorkspace", why: "workspace-level object; owner only; the store scopes the id to {wsID}"},
+	"webhooks DELETE /workspaces/{wsID}/webhooks/{id}":                      {reaches: "AuthorizeWorkspace", why: "workspace-level object; owner only; the store scopes the id to {wsID}"},
 	"templatelib GET /workspaces/{wsID}/template-library":                   {reaches: "AuthorizeWorkspace", why: "workspace-scoped list"},
 	"templatelib DELETE /workspaces/{wsID}/template-library/{templateID}":   {reaches: "AuthorizeWorkspace", why: "template is a workspace-level object"},
 	"templatelib POST /workspaces/{wsID}/template-library/{templateID}/use": {reaches: "AuthorizeSpaceWrite", why: "writes into the TARGET space, which arrives in the body"},
@@ -131,9 +135,9 @@ var noEnforcer = map[string]enfRow{
 // The split as it ships. A change to any of these three numbers is a change to the authorization
 // surface and has to be declared here, in this file, next to the row that moved.
 const (
-	wantRoutes   = 111 // B28.446: +4 — the team list/create and roster routes (declared)
+	wantRoutes   = 115 // B39.14: +4 — the owner-only workspace webhook routes (declared)
 	wantGated    = 73
-	wantDeclared = 38
+	wantDeclared = 42
 )
 
 func TestRoutePermissionEnforcers_ArePinnedAsAPopulation(t *testing.T) {
