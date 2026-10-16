@@ -53,6 +53,8 @@ services:
       # Bearer token for GET /metrics. Unset ⇒ /metrics 401s every request. >= 16 chars when
       # set, or Docs refuses to boot.
       - DOCS_METRICS_TOKEN=${DOCS_METRICS_TOKEN:-}
+      # Seals workspace webhook secrets. Unset ⇒ webhooks are disabled. openssl rand -base64 32
+      - DOCS_WEBHOOK_ENCRYPTION_KEY=${DOCS_WEBHOOK_ENCRYPTION_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

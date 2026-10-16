@@ -1,6 +1,7 @@
 package approval
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,8 +13,20 @@ import (
 )
 
 type Handler struct {
-	store   *Store
-	pageEnf *permission.Enforcer // A3: approval acts on a page (nil => 404, fail-closed)
+	store    *Store
+	pageEnf  *permission.Enforcer // A3: approval acts on a page (nil => 404, fail-closed)
+	notifier Notifier
+}
+
+// Notifier receives each approval event after it is stored (internal/webhooks.Sink). It never fails the request.
+type Notifier interface {
+	Emit(ctx context.Context, wsID, eventType string, data map[string]any)
+}
+
+// WithNotifier sends approval.requested and approval.decided to n.
+func (h *Handler) WithNotifier(n Notifier) *Handler {
+	h.notifier = n
+	return h
 }
 
 func NewHandler(store *Store) *Handler { return &Handler{store: store} }
@@ -86,6 +99,9 @@ func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if h.notifier != nil {
+		h.notifier.Emit(r.Context(), ws, "approval.requested", map[string]any{"actor_id": requestedBy, "request": req})
 	}
 	writeJSON(w, http.StatusCreated, req)
 }
@@ -161,6 +177,12 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		}
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if ws, ok := permission.WorkspaceFromContext(r.Context()); ok && h.notifier != nil {
+		h.notifier.Emit(r.Context(), ws, "approval.decided", map[string]any{
+			"request_id": requestID, "page_id": chi.URLParam(r, "pageID"), "reviewer_id": reviewerID,
+			"decision": in.Decision, "comment": in.Comment,
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

@@ -5,6 +5,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -109,6 +110,10 @@ type Config struct {
 	// (B18.42, decided): an import over it is refused with a plain 413 that says the limit.
 	MaxBodyBytes       int64
 	MaxImportBodyBytes int64
+
+	// WebhookEncryptionKey seals workspace webhook signing secrets at rest (AES-256-GCM), from
+	// DOCS_WEBHOOK_ENCRYPTION_KEY (`openssl rand -base64 32`). Unset ⇒ webhooks are disabled.
+	WebhookEncryptionKey []byte
 
 	// GatewayAuthSecret is SEC-4 Layer 1's root of trust: the shared secret the edge
 	// gateway sends in x-gateway-auth to prove a request transited it (so the injected
@@ -219,6 +224,13 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("%w: GATEWAY_AUTH_SECRET is a PUBLISHED placeholder from this "+
 			"repo and is permanently compromised — it is in git history, so it cannot be made "+
 			"secret again. Generate a fresh value: openssl rand -hex 32", ErrMissingEnv)
+	}
+	if v := os.Getenv("DOCS_WEBHOOK_ENCRYPTION_KEY"); v != "" {
+		key, err := base64.StdEncoding.DecodeString(v)
+		if err != nil || len(key) != 32 {
+			return nil, fmt.Errorf("%w: DOCS_WEBHOOK_ENCRYPTION_KEY must be base64 of exactly 32 bytes (openssl rand -base64 32)", ErrMissingEnv)
+		}
+		cfg.WebhookEncryptionKey = key
 	}
 	if cfg.MetricsToken != "" && len(cfg.MetricsToken) < MinGatewayAuthSecretLen {
 		return nil, fmt.Errorf("%w: DOCS_METRICS_TOKEN, if set, must be >= %d chars", ErrMissingEnv, MinGatewayAuthSecretLen)

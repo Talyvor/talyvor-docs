@@ -506,7 +506,13 @@ var routesWithNoSPACaller = map[string]string{
 	"GET /v1/workspaces/{}/recent-pages": "talyvor-suite's Docs sidebar, through its BFF (B18.27) — internal/pin",
 	"POST /v1/service/workspaces/{}/member-sync": "service-to-service — talyvor-suite's bff calls it " +
 		"(apps/bff/docs_membersync_test.go, deploy/FULL-STACK-DEPLOY.md)",
-	"GET /v1/workspaces/{}/changelog/feed": "named in talyvor-suite/BFF-GAPS.md as a gap; not yet called",
+	// internal/webhooks (B39.14) — this SPA is not shipped (the image serves no frontend); the
+	// owner's screen is talyvor-suite's Settings → Webhooks, through its BFF.
+	"GET /v1/workspaces/{}/webhooks":            "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
+	"POST /v1/workspaces/{}/webhooks":           "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
+	"POST /v1/workspaces/{}/webhooks/{}/rotate": "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
+	"DELETE /v1/workspaces/{}/webhooks/{}":      "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
+	"GET /v1/workspaces/{}/changelog/feed":      "named in talyvor-suite/BFF-GAPS.md as a gap; not yet called",
 	// ⚠ A VERB-LEVEL ENTRY, AND THE REASON THE ESTATE TAGS SAY "PATH-LEVEL". frontend/src/api/
 	// changelog.ts PATCHes and DELETEs this exact path and never GETs it. A path-level search
 	// finds changelog.ts and would have called this route reached.
