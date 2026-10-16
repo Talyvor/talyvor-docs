@@ -19,6 +19,8 @@ type Handler struct {
 }
 
 // Notifier receives each approval event after it is stored (internal/webhooks.Sink). It never fails the request.
+// Events carry ids and states, never the message or comment text: the page may be in a private space the
+// endpoint's owner cannot read, so the receiver fetches text through the access-checked API.
 type Notifier interface {
 	Emit(ctx context.Context, wsID, eventType string, data map[string]any)
 }
@@ -101,7 +103,10 @@ func (h *Handler) Request(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.notifier != nil {
-		h.notifier.Emit(r.Context(), ws, "approval.requested", map[string]any{"actor_id": requestedBy, "request": req})
+		h.notifier.Emit(r.Context(), ws, "approval.requested", map[string]any{
+			"actor_id": requestedBy, "request_id": req.ID, "page_id": req.PageID, "reviewers": req.Reviewers,
+			"status": req.Status, "due_date": req.DueDate,
+		})
 	}
 	writeJSON(w, http.StatusCreated, req)
 }
@@ -181,7 +186,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	if ws, ok := permission.WorkspaceFromContext(r.Context()); ok && h.notifier != nil {
 		h.notifier.Emit(r.Context(), ws, "approval.decided", map[string]any{
 			"request_id": requestID, "page_id": chi.URLParam(r, "pageID"), "reviewer_id": reviewerID,
-			"decision": in.Decision, "comment": in.Comment,
+			"decision": in.Decision,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

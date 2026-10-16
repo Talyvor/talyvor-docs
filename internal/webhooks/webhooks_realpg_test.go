@@ -185,15 +185,14 @@ func TestApprovalRequestReachesURLOnceAndSignatureVerifies_RealPG(t *testing.T) 
 		Data struct {
 			WorkspaceID string `json:"workspace_id"`
 			ActorID     string `json:"actor_id"`
-			Request     struct {
-				PageID string `json:"page_id"`
-			} `json:"request"`
+			PageID      string `json:"page_id"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(reqs[0].body, &ev); err != nil {
 		t.Fatal(err)
 	}
-	if ev.Type != "approval.requested" || ev.Data.WorkspaceID != ws || ev.Data.ActorID != alice.id || ev.Data.Request.PageID != pageID {
+	if ev.Type != "approval.requested" || ev.Data.WorkspaceID != ws || ev.Data.ActorID != alice.id || ev.Data.PageID != pageID ||
+		strings.Contains(string(reqs[0].body), "please review") { // text stays behind the access-checked API
 		t.Fatalf("payload = %s", reqs[0].body)
 	}
 	if codes := attempts(t, d, ws); len(codes) != 1 || codes[0] != 200 {

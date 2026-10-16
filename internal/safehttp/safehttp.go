@@ -11,14 +11,35 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"time"
 )
 
 // ErrBlockedAddress is returned when a fetch targets a non-public (SSRF-sensitive) address.
 var ErrBlockedAddress = errors.New("safehttp: refusing to connect to a non-public address")
 
+// reserved are special-purpose ranges the net.IP predicates below do not cover: this network, carrier-grade
+// NAT, IETF protocol assignments, benchmarking, reserved, and the IPv6 prefixes that embed an IPv4 address.
+var reserved = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("2002::/16"),
+}
+
 // blocked reports whether ip is in an SSRF-sensitive range that must never be dialed.
 func blocked(ip net.IP) bool {
+	if a, ok := netip.AddrFromSlice(ip); ok {
+		a = a.Unmap()
+		for _, p := range reserved {
+			if p.Contains(a) {
+				return true
+			}
+		}
+	}
 	return ip.IsLoopback() || // 127.0.0.0/8, ::1
 		ip.IsPrivate() || // 10/8, 172.16/12, 192.168/16, fc00::/7 (ULA)
 		ip.IsLinkLocalUnicast() || // 169.254.0.0/16 (incl. metadata 169.254.169.254), fe80::/10
@@ -74,7 +95,7 @@ func safeDialContext(base *net.Dialer) func(ctx context.Context, network, addr s
 func Client(timeout time.Duration) *http.Client {
 	base := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
+		Proxy:                 nil, // a proxy would dial the target itself, past this guard
 		DialContext:           safeDialContext(base),
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          10,
