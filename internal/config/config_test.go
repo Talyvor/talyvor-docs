@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/talyvor/docs/internal/config"
@@ -47,5 +48,25 @@ func TestLoad_MetricsToken(t *testing.T) {
 	t.Setenv("DOCS_METRICS_TOKEN", "a-strong-scrape-token-0123456789")
 	if cfg, err := config.Load(); err != nil || cfg.MetricsToken != "a-strong-scrape-token-0123456789" {
 		t.Fatalf("valid DOCS_METRICS_TOKEN must load, got %v", err)
+	}
+}
+
+func TestLoad_EmailSwitchedOnButIncompleteRefusesToBoot(t *testing.T) {
+	t.Setenv("DOCS_DATABASE_URL", "postgres://x")
+	t.Setenv("GATEWAY_AUTH_SECRET", "a-strong-gateway-secret-0123456789")
+	t.Setenv("DOCS_EMAIL_ENABLED", "")
+	if cfg, err := config.Load(); err != nil || cfg.EmailEnabled {
+		t.Fatalf("email unset: err=%v enabled=%v, want booted with email off", err, cfg != nil && cfg.EmailEnabled)
+	}
+	t.Setenv("DOCS_EMAIL_ENABLED", "true")
+	t.Setenv("DOCS_SMTP_PORT", "465")
+	t.Setenv("DOCS_EMAIL_FROM", "Talyvor Docs <docs@talyvor.com>")
+	t.Setenv("DOCS_SMTP_HOST", "")
+	if _, err := config.Load(); err == nil || !strings.Contains(err.Error(), "DOCS_SMTP_HOST") {
+		t.Fatalf("email on with no host: err=%v, want a refusal naming DOCS_SMTP_HOST", err)
+	}
+	t.Setenv("DOCS_SMTP_HOST", "smtp.mx.cloudflare.net")
+	if cfg, err := config.Load(); err != nil || !cfg.EmailEnabled || cfg.SMTPPort != 465 {
+		t.Fatalf("email on and complete: err=%v", err)
 	}
 }

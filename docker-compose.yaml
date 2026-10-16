@@ -55,6 +55,13 @@ services:
       - DOCS_METRICS_TOKEN=${DOCS_METRICS_TOKEN:-}
       # Seals workspace webhook secrets. Unset ⇒ webhooks are disabled. openssl rand -base64 32
       - DOCS_WEBHOOK_ENCRYPTION_KEY=${DOCS_WEBHOOK_ENCRYPTION_KEY:-}
+      # Approval-request email (B39.16). Off unless DOCS_EMAIL_ENABLED; see .env.example.
+      - DOCS_EMAIL_ENABLED=${DOCS_EMAIL_ENABLED:-false}
+      - DOCS_SMTP_HOST=${DOCS_SMTP_HOST:-}
+      - DOCS_SMTP_PORT=${DOCS_SMTP_PORT:-}
+      - DOCS_SMTP_USER=${DOCS_SMTP_USER:-}
+      - DOCS_SMTP_PASSWORD=${DOCS_SMTP_PASSWORD:-}
+      - DOCS_EMAIL_FROM=${DOCS_EMAIL_FROM:-}
     depends_on:
       postgres:
         condition: service_healthy

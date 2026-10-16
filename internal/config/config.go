@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -114,6 +115,16 @@ type Config struct {
 	// WebhookEncryptionKey seals workspace webhook signing secrets at rest (AES-256-GCM), from
 	// DOCS_WEBHOOK_ENCRYPTION_KEY (`openssl rand -base64 32`). Unset ⇒ webhooks are disabled.
 	WebhookEncryptionKey []byte
+
+	// Notification email (B39.16). EmailEnabled (DOCS_EMAIL_ENABLED) is OFF by default; switched on, Docs
+	// refuses to boot unless DOCS_SMTP_HOST, DOCS_SMTP_PORT and DOCS_EMAIL_FROM are set, and
+	// DOCS_SMTP_USER and DOCS_SMTP_PASSWORD come as a pair.
+	EmailEnabled bool
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUser     string
+	SMTPPassword string
+	EmailFrom    string
 
 	// GatewayAuthSecret is SEC-4 Layer 1's root of trust: the shared secret the edge
 	// gateway sends in x-gateway-auth to prove a request transited it (so the injected
@@ -235,7 +246,33 @@ func Load() (*Config, error) {
 	if cfg.MetricsToken != "" && len(cfg.MetricsToken) < MinGatewayAuthSecretLen {
 		return nil, fmt.Errorf("%w: DOCS_METRICS_TOKEN, if set, must be >= %d chars", ErrMissingEnv, MinGatewayAuthSecretLen)
 	}
-	return cfg, nil
+	return cfg.loadEmail()
+}
+
+func (c *Config) loadEmail() (*Config, error) {
+	c.EmailEnabled, _ = strconv.ParseBool(os.Getenv("DOCS_EMAIL_ENABLED"))
+	c.SMTPHost = os.Getenv("DOCS_SMTP_HOST")
+	c.SMTPUser = os.Getenv("DOCS_SMTP_USER")
+	c.SMTPPassword = os.Getenv("DOCS_SMTP_PASSWORD")
+	c.EmailFrom = os.Getenv("DOCS_EMAIL_FROM")
+	if !c.EmailEnabled {
+		return c, nil
+	}
+	port, err := strconv.Atoi(os.Getenv("DOCS_SMTP_PORT"))
+	if err != nil || port <= 0 || port > 65535 {
+		return nil, fmt.Errorf("%w: DOCS_EMAIL_ENABLED is on, so DOCS_SMTP_PORT must be a port number", ErrMissingEnv)
+	}
+	c.SMTPPort = port
+	if c.SMTPHost == "" {
+		return nil, fmt.Errorf("%w: DOCS_EMAIL_ENABLED is on, so DOCS_SMTP_HOST must be set", ErrMissingEnv)
+	}
+	if _, err := mail.ParseAddress(c.EmailFrom); err != nil {
+		return nil, fmt.Errorf("%w: DOCS_EMAIL_ENABLED is on, so DOCS_EMAIL_FROM must be an email address", ErrMissingEnv)
+	}
+	if (c.SMTPUser == "") != (c.SMTPPassword == "") {
+		return nil, fmt.Errorf("%w: DOCS_SMTP_USER and DOCS_SMTP_PASSWORD must be set together", ErrMissingEnv)
+	}
+	return c, nil
 }
 
 // splitList parses a comma-separated env var, dropping empties so a trailing comma or an
