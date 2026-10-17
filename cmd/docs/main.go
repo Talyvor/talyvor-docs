@@ -715,6 +715,7 @@ func main() {
 		commentHandler.Mount(r)
 		changelogHandler.Mount(r)
 		domainHandler.Mount(r)
+		email.NewPrefsHandler(pool).Mount(r) // B39.32: a member switches their own emails on and off
 		if webhookHandler != nil {
 			webhookHandler.Mount(r)
 		}

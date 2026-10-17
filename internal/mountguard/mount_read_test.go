@@ -88,6 +88,7 @@ var routeFloor = map[string]int{
 	"customdomain":     7,
 	"database":         10,
 	"editsession":      5,
+	"email":            2,
 	"export":           1,
 	"freshness":        2,
 	"importer":         2,

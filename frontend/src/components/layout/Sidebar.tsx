@@ -13,7 +13,7 @@ import {
   Lock,
   BookOpen,
   ClipboardCheck,
-  Globe,
+  Settings,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSpaces, useCreateSpace } from "~/hooks/useSpaces";
@@ -122,8 +122,8 @@ export function Sidebar({
           onClick={onOpenDomains}
           className="mb-2 flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-muted hover:bg-bg hover:text-text"
         >
-          <Globe size={14} />
-          Custom domains
+          <Settings size={14} />
+          Settings
         </button>
         <button
           onClick={onOpenStale}
