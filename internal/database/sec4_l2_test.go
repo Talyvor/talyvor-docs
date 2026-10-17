@@ -126,7 +126,7 @@ func TestSEC4_L2_SecondaryCrossTenant(t *testing.T) {
 	ctx := context.Background()
 
 	wsA := d.Workspace(t)
-	d.Member(t, wsA, "alice@corp.com") // Alice ∈ A only
+	d.Owner(t, wsA, "alice@corp.com") // Alice ∈ A only; owner, so the custom-domain admin route reaches its scope check
 	wsB := d.Workspace(t)
 	bob := d.Member(t, wsB, "bob@corp.com") // Bob ∈ B only
 	pageB := d.Page(t, wsB, bob, "Secret B roadmap")

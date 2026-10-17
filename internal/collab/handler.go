@@ -172,7 +172,7 @@ func (h *Handler) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := h.upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil) // nosemgrep: websocket-missing-origin-check -- CheckOrigin is installed by NewHandler/WithAllowedOrigins (originChecker); TestServeWS_RefusesAForeignOriginUpgrade
 	if err != nil {
 		slog.Warn("collab: upgrade failed", slog.String("err", err.Error()))
 		return

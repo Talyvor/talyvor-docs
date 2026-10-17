@@ -258,6 +258,9 @@ jobs:
         run: python3 scripts/check-semgrep-rule-scope.py
       # --error → non-zero exit on any finding, so this BLOCKS rather than reports.
       - run: semgrep --config .semgrep/ --error --quiet
+      # Semgrep's managed default ruleset (B42.6). Fails on ERROR severity; WARNING/INFO findings are
+      # fixed or carry a nosemgrep reason in place.
+      - run: semgrep scan --config p/default --metrics=off --severity ERROR --error --quiet
 
   frontend:
     runs-on: ubuntu-latest
