@@ -4,6 +4,7 @@ package email
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"mime"
@@ -22,7 +23,7 @@ type SMTP struct {
 	Port                       int
 }
 
-func (s SMTP) Send(ctx context.Context, to, subject, body string) error {
+func (s SMTP) Send(ctx context.Context, b Brand, to, subject, body string) error {
 	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	d := net.Dialer{Timeout: 15 * time.Second}
 	var conn net.Conn
@@ -69,7 +70,12 @@ func (s SMTP) Send(ctx context.Context, to, subject, body string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := w.Write(message(s.From, to, subject, body)); err != nil {
+	// A branded workspace's name is only the display name; the address stays Docs' own, for SPF and DKIM.
+	fromHeader := s.From
+	if b.Name != "" {
+		fromHeader = (&mail.Address{Name: b.Name + " via Talyvor", Address: from.Address}).String()
+	}
+	if _, err := w.Write(message(fromHeader, to, subject, body, b)); err != nil {
 		return err
 	}
 	if err := w.Close(); err != nil {
@@ -78,12 +84,18 @@ func (s SMTP) Send(ctx context.Context, to, subject, body string) error {
 	return c.Quit()
 }
 
-func message(from, to, subject, body string) []byte {
+func message(from, to, subject, body string, brand Brand) []byte {
+	// A random boundary, so no page title can close a part early.
+	boundary := "talyvor-" + rand.Text()
+	crlf := func(s string) string { return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n") }
 	var b strings.Builder
 	fmt.Fprintf(&b, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\n", from, to,
 		mimeHeader(subject), time.Now().UTC().Format(time.RFC1123Z))
-	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n")
-	b.WriteString(strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\n", "\r\n"))
+	b.WriteString("MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=" + boundary + "\r\n\r\n")
+	b.WriteString("--" + boundary + "\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n")
+	b.WriteString(crlf(body) + "\r\n")
+	b.WriteString("--" + boundary + "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n")
+	b.WriteString(crlf(render(brand, body)) + "\r\n--" + boundary + "--\r\n")
 	return []byte(b.String())
 }
 

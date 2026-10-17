@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,19 +23,28 @@ const MaxAttempts = 5
 const lease = 10 * time.Minute
 
 type Sender interface {
-	Send(ctx context.Context, to, subject, body string) error
+	Send(ctx context.Context, b Brand, to, subject, body string) error
 }
 
 // Sink is a notifier for the approval handler: a request writes one outbox row per reviewer, and Start's loop
 // sends them. It never fails the request that caused the event.
 type Sink struct {
-	pool   *pgxpool.Pool
-	sender Sender
-	kick   chan struct{}
+	pool        *pgxpool.Pool
+	sender      Sender
+	kick        chan struct{}
+	defaultLogo string
 }
 
 func NewSink(pool *pgxpool.Pool, sender Sender) *Sink {
 	return &Sink{pool: pool, sender: sender, kick: make(chan struct{}, 1)}
+}
+
+// WithDefaultLogo sets the logo in an unbranded workspace's mail header; only an https URL is used.
+func (s *Sink) WithDefaultLogo(url string) *Sink {
+	if strings.HasPrefix(url, "https://") {
+		s.defaultLogo = url
+	}
+	return s
 }
 
 // Emit queues mail for approval.requested and ignores every other event.
@@ -153,7 +163,10 @@ func (s *Sink) Start(ctx context.Context, interval time.Duration) {
 	}
 }
 
-type outboxRow struct{ id, workspaceID, to, subject, body string }
+type outboxRow struct {
+	id, workspaceID, to, subject, body string
+	brand                              Brand
+}
 
 // SendDue sends every message that is due and returns how many it tried.
 func (s *Sink) SendDue(ctx context.Context) (int, error) {
@@ -161,20 +174,27 @@ func (s *Sink) SendDue(ctx context.Context) (int, error) {
 		WITH due AS (
 		    SELECT id FROM notification_outbox
 		    WHERE sent_at IS NULL AND attempts < $1 AND due_at <= NOW()
-		    ORDER BY due_at LIMIT 50 FOR UPDATE SKIP LOCKED)
-		UPDATE notification_outbox SET attempts = attempts + 1, due_at = NOW() + $2 * INTERVAL '1 second'
-		WHERE id IN (SELECT id FROM due)
-		RETURNING id, workspace_id, to_email, subject, body`, MaxAttempts, int64(lease/time.Second))
+		    ORDER BY due_at LIMIT 50 FOR UPDATE SKIP LOCKED),
+		claimed AS (
+		    UPDATE notification_outbox SET attempts = attempts + 1, due_at = NOW() + $2 * INTERVAL '1 second'
+		    WHERE id IN (SELECT id FROM due)
+		    RETURNING id, workspace_id, to_email, subject, body)
+		-- The brand is read at send time, so a mail queued before the owner set it still goes out branded.
+		SELECT c.id, c.workspace_id, c.to_email, c.subject, c.body,
+		       coalesce(b.from_name, ''), coalesce(b.header_color, ''), coalesce(b.logo_url, '')
+		FROM claimed c LEFT JOIN workspace_email_branding b ON b.workspace_id = c.workspace_id`, MaxAttempts, int64(lease/time.Second))
 	if err != nil {
 		return 0, err
 	}
 	var due []outboxRow
 	for rows.Next() {
 		var r outboxRow
-		if err := rows.Scan(&r.id, &r.workspaceID, &r.to, &r.subject, &r.body); err != nil {
+		var name, color, logo string
+		if err := rows.Scan(&r.id, &r.workspaceID, &r.to, &r.subject, &r.body, &name, &color, &logo); err != nil {
 			rows.Close()
 			return 0, err
 		}
+		r.brand = s.brandFor(name, color, logo)
 		due = append(due, r)
 	}
 	rows.Close()
@@ -182,7 +202,7 @@ func (s *Sink) SendDue(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	for _, r := range due {
-		if err := s.sender.Send(ctx, r.to, r.subject, r.body); err != nil {
+		if err := s.sender.Send(ctx, r.brand, r.to, r.subject, r.body); err != nil {
 			slog.Warn("email: send failed", "id", r.id, "err", err)
 			// Retry after 1, 2, 4, 8 minutes; the lease above covers a crash between claim and here.
 			if _, uerr := s.pool.Exec(ctx, `

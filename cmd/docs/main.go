@@ -327,7 +327,7 @@ func main() {
 	// B39.16: a reviewer is emailed when their approval is requested. Off unless DOCS_EMAIL_ENABLED.
 	if cfg.EmailEnabled {
 		mailSink := email.NewSink(pool, email.SMTP{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser,
-			Password: cfg.SMTPPassword, From: cfg.EmailFrom})
+			Password: cfg.SMTPPassword, From: cfg.EmailFrom}).WithDefaultLogo(os.Getenv("DOCS_EMAIL_LOGO_URL"))
 		approvalNotifiers = append(approvalNotifiers, mailSink)
 		freshEngine.WithMailer(mailSink) // B39.19: the 09:00 UTC digest mails each opted-in page owner
 		go mailSink.Start(ctx, 30*time.Second)
@@ -715,7 +715,8 @@ func main() {
 		commentHandler.Mount(r)
 		changelogHandler.Mount(r)
 		domainHandler.Mount(r)
-		email.NewPrefsHandler(pool).Mount(r) // B39.32: a member switches their own emails on and off
+		email.NewPrefsHandler(pool).Mount(r)    // B39.32: a member switches their own emails on and off
+		email.NewBrandingHandler(pool).Mount(r) // B39.20: an owner sets the name, colour and logo on the workspace's mail
 		if webhookHandler != nil {
 			webhookHandler.Mount(r)
 		}

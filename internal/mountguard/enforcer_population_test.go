@@ -95,6 +95,8 @@ var noEnforcer = map[string]enfRow{
 	"page GET /workspaces/{wsID}/pages/search":                              {reaches: "AuthorizeWorkspace", why: "workspace-scoped query, no single page object"},
 	"email GET /workspaces/{wsID}/notification-preferences":                 {reaches: "AuthorizeWorkspace", why: "the caller's own email choices; the member is the verified membership, never the request (B39.32)"},
 	"email PUT /workspaces/{wsID}/notification-preferences":                 {reaches: "AuthorizeWorkspace", why: "the caller's own email choices; the member is the verified membership, never the request (B39.32)"},
+	"email GET /workspaces/{wsID}/email-branding":                           {reaches: "AuthorizeWorkspace", why: "any member reads how the workspace's mail looks (B39.20)"},
+	"email PUT /workspaces/{wsID}/email-branding":                           {reaches: "AuthorizeWorkspace", why: "the verified membership's role must be owner, else 403 (B39.20)"},
 	"pin GET /workspaces/{wsID}/pins":                                       {reaches: "AuthorizeWorkspace", why: "the caller's own pins; every page re-checked for View before it is listed (B18.41)"},
 	"pin GET /workspaces/{wsID}/recent-pages":                               {reaches: "AuthorizeWorkspace", why: "the caller's own recent pages; every page re-checked for View before it is listed (B18.41)"},
 	"team GET /workspaces/{wsID}/teams":                                     {reaches: "AuthorizeWorkspace", why: "a team is a workspace-level object (B28.446)"},
@@ -137,9 +139,9 @@ var noEnforcer = map[string]enfRow{
 // The split as it ships. A change to any of these three numbers is a change to the authorization
 // surface and has to be declared here, in this file, next to the row that moved.
 const (
-	wantRoutes   = 117 // B39.32: +2 — a member's own notification preferences (declared)
+	wantRoutes   = 119 // B39.20: +2 — the workspace's email branding (declared)
 	wantGated    = 73
-	wantDeclared = 44
+	wantDeclared = 46
 )
 
 func TestRoutePermissionEnforcers_ArePinnedAsAPopulation(t *testing.T) {
