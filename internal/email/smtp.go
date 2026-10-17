@@ -29,7 +29,7 @@ func (s SMTP) Send(ctx context.Context, b Brand, to, subject, body string) error
 	var conn net.Conn
 	var err error
 	if s.Port == 465 {
-		conn, err = (&tls.Dialer{NetDialer: &d, Config: &tls.Config{ServerName: s.Host}}).DialContext(ctx, "tcp", addr)
+		conn, err = (&tls.Dialer{NetDialer: &d, Config: &tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12}}).DialContext(ctx, "tcp", addr)
 	} else {
 		conn, err = d.DialContext(ctx, "tcp", addr)
 	}
@@ -44,7 +44,7 @@ func (s SMTP) Send(ctx context.Context, b Brand, to, subject, body string) error
 	}
 	defer c.Close()
 	if ok, _ := c.Extension("STARTTLS"); ok && s.Port != 465 {
-		if err := c.StartTLS(&tls.Config{ServerName: s.Host}); err != nil {
+		if err := c.StartTLS(&tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12}); err != nil {
 			return err
 		}
 	} else if s.Port != 465 && !isLoopback(s.Host) {

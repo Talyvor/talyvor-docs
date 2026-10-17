@@ -112,7 +112,7 @@ func (h *Handler) Export(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
-	_, _ = w.Write(buf.Bytes())
+	_, _ = w.Write(buf.Bytes()) // nosemgrep: no-direct-write-to-responsewriter -- a download (Content-Disposition: attachment) of the page's export, not a rendered page
 }
 
 func contentTypeAndExt(f Format) (string, string) {

@@ -95,8 +95,8 @@ func newScopeFixture(t *testing.T, txt customdomain.TXTResolver) *scopeFixture {
 	f.wsA = d.Workspace(t)
 	f.wsB = d.Workspace(t)
 	f.wsC = d.Workspace(t) // alice is deliberately NOT a member of C
-	d.Member(t, f.wsA, f.mail)
-	d.Member(t, f.wsB, f.mail)
+	d.Owner(t, f.wsA, f.mail)
+	d.Owner(t, f.wsB, f.mail)
 	d.Member(t, f.wsC, "mallory@example.com")
 
 	store := customdomain.NewStoreWithResolver(d.Pool, txt)
@@ -372,5 +372,36 @@ func TestForeignWorkspaceIsStillRefused_RealPG(t *testing.T) {
 	if n != 0 {
 		t.Errorf("[FOREIGN-WS-NO-ROW] %d custom_domains row(s) landed in a workspace the caller is "+
 			"not a member of", n)
+	}
+}
+
+// TestOnlyAnOwnerOrAdminManagesCustomDomains_RealPG (B42.6): a plain member of the workspace gets
+// 403 on all four admin routes and changes nothing; the owner (the fixture's alice) succeeds.
+func TestOnlyAnOwnerOrAdminManagesCustomDomains_RealPG(t *testing.T) {
+	f := newScopeFixture(t, fakeTXT{})
+	cd := f.createDomain(t, f.wsA, "docs.owned.example")
+	bob := &scopeFixture{srv: f.srv, mail: "bob@example.com"}
+	f.d.Member(t, f.wsA, bob.mail)
+
+	base := "/v1/workspaces/" + f.wsA + "/custom-domains"
+	for _, c := range []struct{ method, url, body string }{
+		{http.MethodPost, base, `{"domain":"docs.member.example"}`},
+		{http.MethodGet, base, ""},
+		{http.MethodPost, base + "/" + cd.ID + "/verify", ""},
+		{http.MethodDelete, base + "/" + cd.ID, ""},
+	} {
+		if code, body := bob.as(t, c.method, c.url, c.body); code != http.StatusForbidden {
+			t.Errorf("member %s %s = %d %s, want 403", c.method, c.url, code, body)
+		}
+	}
+	if _, verified, found := f.domainRow(t, cd.ID); !found || verified {
+		t.Errorf("after the member's attempts: found=%v verified=%v, want found and unverified", found, verified)
+	}
+
+	if code, body := f.as(t, http.MethodGet, base, ""); code != http.StatusOK || !hasDomain(listDomains(t, body), "docs.owned.example") {
+		t.Errorf("owner list = %d %s, want 200 with the domain", code, body)
+	}
+	if code, body := f.as(t, http.MethodDelete, base+"/"+cd.ID, ""); code != http.StatusOK {
+		t.Errorf("owner delete = %d %s, want 200", code, body)
 	}
 }

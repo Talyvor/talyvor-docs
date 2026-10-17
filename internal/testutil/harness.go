@@ -215,6 +215,19 @@ func (d *DB) Member(t *testing.T, wsID, email string) string {
 	return memberID
 }
 
+// Owner seeds email as wsID's owner (workspace_members.role = 'owner') and returns the member id —
+// the caller workspace administration routes (custom domains, webhooks) require.
+func (d *DB) Owner(t *testing.T, wsID, email string) string {
+	t.Helper()
+	memberID := d.Member(t, wsID, email)
+	if _, err := d.Pool.Exec(context.Background(),
+		`UPDATE workspace_members SET role = 'owner' WHERE workspace_id = $1 AND email = $2`,
+		wsID, email); err != nil {
+		t.Fatalf("testutil: seed owner: %v", err)
+	}
+	return memberID
+}
+
 // Page persists a space and a page inside it (real rows) in wsID, authored by
 // authorID, and returns the page id — the object a cross-tenant test fetches by id.
 func (d *DB) Page(t *testing.T, wsID, authorID, title string) string {

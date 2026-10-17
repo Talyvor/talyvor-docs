@@ -278,14 +278,14 @@ func (s *Server) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	tick := time.NewTicker(30 * time.Second)
 	defer tick.Stop()
 	// Initial event so clients know the stream opened cleanly.
-	fmt.Fprintf(w, "event: ping\ndata: {\"ts\":%d}\n\n", time.Now().Unix())
+	fmt.Fprintf(w, "event: ping\ndata: {\"ts\":%d}\n\n", time.Now().Unix()) // nosemgrep: no-fprintf-to-responsewriter -- SSE ping carrying only an integer timestamp
 	flusher.Flush()
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case <-tick.C:
-			fmt.Fprintf(w, "event: ping\ndata: {\"ts\":%d}\n\n", time.Now().Unix())
+			fmt.Fprintf(w, "event: ping\ndata: {\"ts\":%d}\n\n", time.Now().Unix()) // nosemgrep: no-fprintf-to-responsewriter -- SSE ping carrying only an integer timestamp
 			flusher.Flush()
 		}
 	}

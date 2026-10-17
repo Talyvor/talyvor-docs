@@ -15,45 +15,37 @@ import (
 	"github.com/talyvor/docs/internal/model"
 )
 
-// contains reports whether v is present in xs. Used to authorize the
-// caller-supplied path {wsID} against the verified membership set
-// before it becomes a new domain's owner workspace.
-func contains(xs []string, v string) bool {
-	for _, x := range xs {
-		if x == v {
-			return true
-		}
+// scopeFor authorizes the caller-supplied {wsID} path param and returns the ONE-workspace scope
+// every store call on these routes must filter by. A custom domain publishes a workspace's docs
+// on a hostname, so like the other workspace administration routes (webhooks, email branding)
+// only the workspace's owner or an admin may manage one.
+//
+// ⚠ WHY THE SET IS NOT THE SCOPE HERE, THOUGH IT IS EVERYWHERE ELSE IN DOCS. These four routes
+// are workspace-in-path; handing them authz.WorkspaceIDs let a caller in workspaces A and B
+// delete and DNS-verify B's domains through A's URL. Measured in wsidscope_realpg_test.go.
+//
+// FAIL-CLOSED: no memberships, an empty {wsID}, or a workspace the caller is not in → 404 (the
+// no-existence-oracle convention of this package's by-id errors); a member who is neither owner
+// nor admin → 403. status is 0 when the caller may proceed.
+func scopeFor(r *http.Request) (wsID string, scope []string, status int) {
+	wsID = chi.URLParam(r, "wsID") // nosemgrep: docs-no-url-param-workspace-scope -- authorized on the next line before this id becomes a query scope
+	m, ok := authz.AuthorizeWorkspace(r.Context(), wsID)
+	if !ok {
+		return "", nil, http.StatusNotFound
 	}
-	return false
+	if m.Role != "owner" && m.Role != "admin" {
+		return "", nil, http.StatusForbidden
+	}
+	return wsID, []string{wsID}, 0
 }
 
-// scopeFor authorizes the caller-supplied {wsID} path param against the verified membership set
-// and returns the ONE-workspace scope every store call on these routes must filter by.
-//
-// ⚠ WHY THE SET IS NOT THE SCOPE HERE, THOUGH IT IS EVERYWHERE ELSE IN DOCS. authz's package doc
-// says it "does NOT authorize a single path workspace" because "Docs's by-id routes are flat
-// (/v1/spaces/{spaceID}/pages/{pageID}), not workspace-in-path like Track". These four routes are
-// the exception that premise excludes — they ARE workspace-in-path. Handing them
-// authz.WorkspaceIDs made the {wsID} they were asked about decorative: a caller in workspaces A
-// and B was served, and could delete and DNS-verify, B's domains through A's URL. Create alone
-// had noticed (it authorized {wsID} inline before owning the new row); List, Verify and Delete
-// had not. Measured on real Postgres in wsidscope_realpg_test.go.
-//
-// FAIL-CLOSED: a caller with no memberships, an empty {wsID}, or a workspace the caller does not
-// belong to all return ok=false. Callers answer 404 rather than 403 — the no-existence-oracle
-// convention the rest of this package's by-id errors already follow (see ErrNotFound).
-//
-// ⚠ IT RETURNS THE ID AND THE SCOPE SEPARATELY, AND THAT IS NOT TIDINESS. The first cut returned
-// only the slice and Create read `ws[0]`. Control C5 (over-refusal: make the scope empty) did not
-// score a catch — it PANICKED on that index, so the mutation crashed the run instead of exercising
-// the guard, a void control rather than a caught one. An empty-but-ok scope is unreachable today,
-// but a signature that panics if it ever becomes reachable is a trap for the next hand.
-func scopeFor(r *http.Request) (wsID string, scope []string, ok bool) {
-	wsID = chi.URLParam(r, "wsID") // nosemgrep: docs-no-url-param-workspace-scope -- authorized here: contains(authz.WorkspaceIDs) rejects non-members before this id becomes a query scope
-	if !contains(authz.WorkspaceIDs(r.Context()), wsID) {
-		return "", nil, false
+// refuse answers a scopeFor refusal.
+func refuse(w http.ResponseWriter, status int) {
+	if status == http.StatusForbidden {
+		writeErr(w, status, "only a workspace owner or admin can manage custom domains")
+		return
 	}
-	return wsID, []string{wsID}, true
+	writeErr(w, status, "not found")
 }
 
 // Handler covers two surfaces:
@@ -115,9 +107,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	// authorize it against the membership set before it becomes the
 	// new row's owner — otherwise the write lands in a foreign
 	// workspace. Unauthorized → 404 (no existence oracle).
-	wsID, _, ok := scopeFor(r)
-	if !ok {
-		writeErr(w, http.StatusNotFound, "not found")
+	wsID, _, status := scopeFor(r)
+	if status != 0 {
+		refuse(w, status)
 		return
 	}
 	cd, err := h.store.Create(r.Context(),
@@ -136,9 +128,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	_, ws, ok := scopeFor(r)
-	if !ok {
-		writeErr(w, http.StatusNotFound, "not found")
+	_, ws, status := scopeFor(r)
+	if status != 0 {
+		refuse(w, status)
 		return
 	}
 	out, err := h.store.GetByWorkspace(r.Context(), ws)
@@ -153,9 +145,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
-	_, ws, authorized := scopeFor(r)
-	if !authorized {
-		writeErr(w, http.StatusNotFound, "not found")
+	_, ws, status := scopeFor(r)
+	if status != 0 {
+		refuse(w, status)
 		return
 	}
 	ok, err := h.store.Verify(r.Context(), chi.URLParam(r, "id"), ws)
@@ -175,9 +167,9 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	_, ws, ok := scopeFor(r)
-	if !ok {
-		writeErr(w, http.StatusNotFound, "not found")
+	_, ws, status := scopeFor(r)
+	if status != 0 {
+		refuse(w, status)
 		return
 	}
 	err := h.store.Delete(r.Context(), chi.URLParam(r, "id"), ws)
@@ -257,6 +249,7 @@ func renderHTMLShellStatus(w http.ResponseWriter, status int, title, body string
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("X-Powered-By", "Talyvor Docs")
 	w.WriteHeader(status)
+	// nosemgrep: no-fprintf-to-responsewriter -- title is escaped here and every caller builds body with html.EscapeString on each page-derived value
 	fmt.Fprintf(w,
 		`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>%s</title><style>%s</style></head><body>%s<footer>Powered by Talyvor Docs</footer></body></html>`,
 		html.EscapeString(title), publicCSS, body,

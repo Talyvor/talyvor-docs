@@ -1,9 +1,14 @@
 package collab
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/websocket"
 )
 
 // The WebSocket upgrader had CheckOrigin return true for EVERY origin, under a comment
@@ -89,4 +94,36 @@ func TestNewHandler_DefaultsToSameOrigin(t *testing.T) {
 	if h.upgrader.CheckOrigin(req("https://evil.example", "docs.talyvor.com")) {
 		t.Error("an unconfigured Handler must still reject a foreign origin (fail-closed default)")
 	}
+}
+
+type inScopeResolver struct{}
+
+func (inScopeResolver) ResolveSession(context.Context, string) (bool, string, bool) {
+	return true, "mbr_1", true
+}
+
+// TestServeWS_RefusesAForeignOriginUpgrade (B42.6) drives a real upgrade: with an in-scope
+// caller, a foreign Origin is refused with 403 and no socket, while the app's own origin connects.
+func TestServeWS_RefusesAForeignOriginUpgrade(t *testing.T) {
+	h := NewHandler(NewOTEngine()).WithAccess(inScopeResolver{}).WithAllowedOrigins([]string{"https://docs.talyvor.com"})
+	r := chi.NewRouter()
+	r.Get("/v1/collab/{pageID}/ws", h.ServeWS)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/v1/collab/p1/ws?client_id=c"
+
+	conn, resp, err := websocket.DefaultDialer.Dial(url, http.Header{"Origin": {"https://evil.example"}})
+	if err == nil {
+		conn.Close()
+		t.Fatal("a foreign Origin opened a collaboration socket")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("foreign Origin upgrade: resp=%v err=%v, want 403", resp, err)
+	}
+
+	conn, _, err = websocket.DefaultDialer.Dial(url, http.Header{"Origin": {"https://docs.talyvor.com"}})
+	if err != nil {
+		t.Fatalf("the app's own origin was refused: %v", err)
+	}
+	conn.Close()
 }

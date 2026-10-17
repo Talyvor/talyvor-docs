@@ -416,7 +416,7 @@ def census(scripts_dir=SCRIPTS):
             code = module_level_only(open(path, encoding="utf-8").read(), path)
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-                exec(code, ns)
+                exec(code, ns)  # nosemgrep: exec-detected -- runs this repo's own control scripts' module-level code to read their anchors; no outside input
         except Exception as exc:
             sys.modules.pop(modname, None)
             unreached.append((name, "EXEC-FAILED: %s: %s" % (type(exc).__name__, exc)))

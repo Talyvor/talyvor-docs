@@ -352,6 +352,7 @@ function funcBodies(dir: string, name: string, recvType: string | null) {
   for (const f of pkgFiles(dir)) {
     const lines = f.text.split("\n");
     for (let i = 0; i < lines.length; i++) {
+      // nosemgrep: detect-non-literal-regexp -- test-only census over this repo's Go source; name is a Go identifier from the SPA's own route table
       const m = new RegExp(`^func\\s+\\(([^)]*)\\)\\s+${name}\\s*\\(`).exec(lines[i]);
       if (!m) continue;
       // ⚠ THE RECEIVER TYPE, AND IT IS LOAD-BEARING: internal/page has (h *Handler) Delete AND
@@ -399,6 +400,7 @@ function namedStructKeys(dir: string, typeName: string, seen = new Set<string>()
   for (const f of pkgFiles(dir)) {
     const lines = f.text.split("\n");
     for (let i = 0; i < lines.length; i++) {
+      // nosemgrep: detect-non-literal-regexp -- test-only census over this repo's Go source; typeName is a Go identifier read from that source
       if (!new RegExp(`^type\\s+${typeName}\\s+struct\\s*\\{`).test(lines[i])) continue;
       const out: string[] = [];
       for (let j = i + 1; j < lines.length; j++) {

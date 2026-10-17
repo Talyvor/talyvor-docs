@@ -118,10 +118,10 @@ var noEnforcer = map[string]enfRow{
 	"templatelib POST /workspaces/{wsID}/template-library/{templateID}/use": {reaches: "AuthorizeSpaceWrite", why: "writes into the TARGET space, which arrives in the body"},
 	"templatelib POST /workspaces/{wsID}/template-library/from-page":        {reaches: "AuthorizePageRead", why: "reads the SOURCE page, which arrives in the body"},
 
-	"customdomain GET /workspaces/{wsID}/custom-domains":              {reaches: "WorkspaceIDs", why: "scoped to the caller's workspace set"},
-	"customdomain POST /workspaces/{wsID}/custom-domains":             {reaches: "WorkspaceIDs", why: "scoped to the caller's workspace set"},
-	"customdomain POST /workspaces/{wsID}/custom-domains/{id}/verify": {reaches: "WorkspaceIDs", why: "scoped to the caller's workspace set"},
-	"customdomain DELETE /workspaces/{wsID}/custom-domains/{id}":      {reaches: "WorkspaceIDs", why: "scoped to the caller's workspace set"},
+	"customdomain GET /workspaces/{wsID}/custom-domains":              {reaches: "AuthorizeWorkspace", why: "workspace-scoped; owner or admin only (B42.6)"},
+	"customdomain POST /workspaces/{wsID}/custom-domains":             {reaches: "AuthorizeWorkspace", why: "workspace-scoped; owner or admin only (B42.6)"},
+	"customdomain POST /workspaces/{wsID}/custom-domains/{id}/verify": {reaches: "AuthorizeWorkspace", why: "workspace-scoped; owner or admin only (B42.6)"},
+	"customdomain DELETE /workspaces/{wsID}/custom-domains/{id}":      {reaches: "AuthorizeWorkspace", why: "workspace-scoped; owner or admin only (B42.6)"},
 
 	// ── object authority, decided inside the handler because the object is not in the URL ──
 	"importer POST /import/confluence": {reaches: "AuthorizeSpaceWrite", why: "space_id is in the MULTIPART FORM, so no resolver can read it from the path"},

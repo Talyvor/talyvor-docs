@@ -22,6 +22,7 @@ bytes read before the run.
 import hashlib
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -94,7 +95,7 @@ def sh(cmd, env=None):
     e["DOCS_TEST_DATABASE_URL"] = DSN
     if env:
         e.update(env)
-    return subprocess.run(cmd, shell=True, cwd=REPO, capture_output=True, text=True, env=e)
+    return subprocess.run(shlex.split(cmd), cwd=REPO, capture_output=True, text=True, env=e)
 
 
 def digest(path):

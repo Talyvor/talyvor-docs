@@ -22,6 +22,7 @@ import { schema } from "../schema";
 
 function headingRule(nodeType: NodeType, maxLevel: number): InputRule {
   return textblockTypeInputRule(
+    // nosemgrep: detect-non-literal-regexp -- maxLevel is a number fixed in code, never user text
     new RegExp("^(#{1," + maxLevel + "})\\s$"),
     nodeType,
     (match) => ({ level: match[1].length }),

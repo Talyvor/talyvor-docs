@@ -279,6 +279,6 @@ func (h *Handler) Feed(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/rss+xml")
 	w.Header().Set("X-Powered-By", "Talyvor Docs")
-	_, _ = w.Write([]byte(xml.Header))
+	_, _ = w.Write([]byte(xml.Header)) // nosemgrep: no-direct-write-to-responsewriter -- constant XML prolog; the feed itself goes through xml.Encoder, which escapes
 	_ = xml.NewEncoder(w).Encode(feed)
 }
