@@ -329,6 +329,7 @@ func main() {
 		mailSink := email.NewSink(pool, email.SMTP{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser,
 			Password: cfg.SMTPPassword, From: cfg.EmailFrom})
 		approvalNotifiers = append(approvalNotifiers, mailSink)
+		freshEngine.WithMailer(mailSink) // B39.19: the 09:00 UTC digest mails each opted-in page owner
 		go mailSink.Start(ctx, 30*time.Second)
 		slog.Info("email: approval-request mail enabled", slog.String("smtp_host", cfg.SMTPHost))
 	}

@@ -1218,7 +1218,7 @@ request bodies, the missing readiness signal, and a latent nil-receiver panic in
   slog default before config loads). **`DOCS_SHARE_SECRET` and `DOCS_BASE_URL` in
   `.env.example` are dead config** — nothing reads them; share tokens are unsigned random
   hex, so the "signing secret" the file describes does not exist.
-- **`team` permission grants are a silent no-op.** **The freshness digest is log-only** and
+- **`team` permission grants are a silent no-op.** **The freshness digest** mails opted-in owners (B39.19), but
   its "warning" tier is unreachable. **`changelog` auto-grouping is broken** (`nil` context
   → the Track lookup always errors). **`trackintegration`'s routes have no authz** and its
   syncer zeroes `ai_cost_usd` on a Track outage.

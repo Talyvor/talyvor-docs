@@ -73,6 +73,18 @@ type FreshnessEngine struct {
 	track      trackReader
 	access     pageVisibility
 	workspaces workspaceEnumerator
+	mailer     digestMailer
+}
+
+// digestMailer queues the daily digest mail. *email.Sink satisfies it; main.go wires it only when email is on.
+type digestMailer interface {
+	QueueStaleDigest(ctx context.Context, workspaceID string, stalePageIDs []string) (int, error)
+}
+
+// WithMailer makes the daily digest email each opted-in page owner their stale pages and waiting approvals.
+func (e *FreshnessEngine) WithMailer(m digestMailer) *FreshnessEngine {
+	e.mailer = m
+	return e
 }
 
 // pageVisibility authorizes a READ of ONE page for the verified caller. *spaceauth.Authorizer
@@ -280,10 +292,11 @@ type DigestSummary struct {
 	WorkspaceID string
 	Stale       int
 	Warning     int
+	Mailed      int
 }
 
-// SendStaleDigest is the per-workspace digest. Phase 7 logs the
-// summary; future phases ship Slack / email integrations.
+// SendStaleDigest is the per-workspace digest: it logs the counts and, with a mailer wired, queues one mail
+// per opted-in owner.
 func (e *FreshnessEngine) SendStaleDigest(ctx context.Context, workspaceID string) error {
 	_, err := e.digestOne(ctx, workspaceID)
 	return err
@@ -297,18 +310,29 @@ func (e *FreshnessEngine) digestOne(ctx context.Context, workspaceID string) (Di
 		return DigestSummary{}, err
 	}
 	out := DigestSummary{WorkspaceID: workspaceID}
+	var staleIDs []string
 	for _, r := range reports {
 		switch r.Status {
 		case FreshnessStale:
 			out.Stale++
+			staleIDs = append(staleIDs, r.PageID)
 		case FreshnessWarning:
 			out.Warning++
 		}
 	}
+	if e.mailer != nil {
+		// Runs with no stale pages too: an owner may still have approvals waiting.
+		n, err := e.mailer.QueueStaleDigest(ctx, workspaceID, staleIDs)
+		if err != nil {
+			return out, fmt.Errorf("freshness: queue digest mail: %w", err)
+		}
+		out.Mailed = n
+	}
 	slog.Info("freshness: stale digest",
 		slog.String("workspace", workspaceID),
 		slog.Int("stale_pages", out.Stale),
-		slog.Int("warning_pages", out.Warning))
+		slog.Int("warning_pages", out.Warning),
+		slog.Int("mails_queued", out.Mailed))
 	return out, nil
 }
 
