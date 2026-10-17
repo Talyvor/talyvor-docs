@@ -8,8 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// KindApprovalRequested is the one email Docs sends today; a reviewer gets it unless they turned it off.
+// KindApprovalRequested is mailed to a reviewer when their approval is requested, unless they turned it off.
 const KindApprovalRequested = "approval.requested"
+
+// KindStaleDigest is the daily mail to a page owner listing their stale pages and the approvals waiting for
+// them. Off unless the member turned it on.
+const KindStaleDigest = "freshness.digest"
 
 // MaxAttempts is how many times one message is tried before it is left with its last error.
 const MaxAttempts = 5
@@ -75,6 +79,60 @@ func (s *Sink) Emit(ctx context.Context, wsID, eventType string, data map[string
 		default:
 		}
 	}
+}
+
+// QueueStaleDigest writes one digest per opted-in member of the workspace who owns one of stalePageIDs or has an
+// approval waiting for them, and returns how many it queued. A member mailed a digest in the last 20 hours is
+// skipped, so a second run the same day sends nothing twice. A private space's page title stays out of the mail.
+func (s *Sink) QueueStaleDigest(ctx context.Context, wsID string, stalePageIDs []string) (int, error) {
+	tag, err := s.pool.Exec(ctx, `
+		WITH stale AS (
+		    SELECT p.created_by AS member_id, count(*) AS n,
+		           string_agg('- ' || CASE WHEN sp.private THEN 'a page in a private space' ELSE '"' || p.title || '"' END,
+		                      E'\n' ORDER BY p.updated_at) AS lines
+		    FROM pages p
+		    JOIN spaces sp ON sp.id = p.space_id AND sp.workspace_id = p.workspace_id
+		    WHERE p.workspace_id = $1 AND p.id = ANY($2)
+		    GROUP BY p.created_by),
+		waiting AS (
+		    SELECT d.reviewer_id AS member_id, count(*) AS n,
+		           string_agg('- ' || CASE WHEN sp.private THEN 'a page in a private space' ELSE '"' || p.title || '"' END
+		                      || CASE WHEN a.due_date IS NOT NULL THEN ' (due ' || to_char(a.due_date AT TIME ZONE 'UTC', 'DD Mon YYYY') || ')' ELSE '' END,
+		                      E'\n' ORDER BY a.created_at) AS lines
+		    FROM approval_requests a
+		    JOIN review_decisions d ON d.request_id = a.id
+		    JOIN pages p ON p.id = a.page_id AND p.workspace_id = a.workspace_id
+		    JOIN spaces sp ON sp.id = p.space_id AND sp.workspace_id = a.workspace_id
+		    WHERE a.workspace_id = $1 AND a.status = 'pending' AND d.decision = 'pending'
+		    GROUP BY d.reviewer_id)
+		INSERT INTO notification_outbox (workspace_id, member_id, kind, to_email, subject, body)
+		SELECT m.workspace_id, m.member_id, $3, m.email,
+		       'Your Talyvor Docs digest: ' || coalesce(st.n, 0) || CASE WHEN st.n = 1 THEN ' stale page, ' ELSE ' stale pages, ' END
+		           || coalesce(w.n, 0) || CASE WHEN w.n = 1 THEN ' approval waiting' ELSE ' approvals waiting' END,
+		       'Here is your daily Talyvor Docs digest.'
+		           || CASE WHEN st.n > 0 THEN E'\n\nPages you own that are past their review date:\n' || st.lines ELSE '' END
+		           || CASE WHEN w.n > 0 THEN E'\n\nWaiting for your approval:\n' || w.lines ELSE '' END
+		           || E'\n\nYou get this because you turned on the daily digest.'
+		FROM workspace_members m
+		JOIN notification_preferences np
+		  ON np.workspace_id = m.workspace_id AND np.member_id = m.member_id AND np.kind = $3 AND np.email
+		LEFT JOIN stale st ON st.member_id = m.member_id
+		LEFT JOIN waiting w ON w.member_id = m.member_id
+		WHERE m.workspace_id = $1 AND (st.n IS NOT NULL OR w.n IS NOT NULL)
+		  AND NOT EXISTS (SELECT 1 FROM notification_outbox o
+		                  WHERE o.workspace_id = m.workspace_id AND o.member_id = m.member_id AND o.kind = $3
+		                    AND o.created_at > NOW() - INTERVAL '20 hours')`,
+		wsID, stalePageIDs, KindStaleDigest)
+	if err != nil {
+		return 0, err
+	}
+	if tag.RowsAffected() > 0 {
+		select {
+		case s.kick <- struct{}{}:
+		default:
+		}
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 // Start sends due mail at once (which replays anything left from before a restart), then every interval and
