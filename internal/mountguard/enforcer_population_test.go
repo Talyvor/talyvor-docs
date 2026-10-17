@@ -93,6 +93,8 @@ var noEnforcer = map[string]enfRow{
 	"changelog GET /workspaces/{wsID}/changelog/feed":                       {reaches: "AuthorizeWorkspace", why: "workspace-wide feed"},
 	"freshness GET /workspaces/{wsID}/freshness":                            {reaches: "AuthorizeWorkspace", why: "workspace roll-up"},
 	"page GET /workspaces/{wsID}/pages/search":                              {reaches: "AuthorizeWorkspace", why: "workspace-scoped query, no single page object"},
+	"email GET /workspaces/{wsID}/notification-preferences":                 {reaches: "AuthorizeWorkspace", why: "the caller's own email choices; the member is the verified membership, never the request (B39.32)"},
+	"email PUT /workspaces/{wsID}/notification-preferences":                 {reaches: "AuthorizeWorkspace", why: "the caller's own email choices; the member is the verified membership, never the request (B39.32)"},
 	"pin GET /workspaces/{wsID}/pins":                                       {reaches: "AuthorizeWorkspace", why: "the caller's own pins; every page re-checked for View before it is listed (B18.41)"},
 	"pin GET /workspaces/{wsID}/recent-pages":                               {reaches: "AuthorizeWorkspace", why: "the caller's own recent pages; every page re-checked for View before it is listed (B18.41)"},
 	"team GET /workspaces/{wsID}/teams":                                     {reaches: "AuthorizeWorkspace", why: "a team is a workspace-level object (B28.446)"},
@@ -135,9 +137,9 @@ var noEnforcer = map[string]enfRow{
 // The split as it ships. A change to any of these three numbers is a change to the authorization
 // surface and has to be declared here, in this file, next to the row that moved.
 const (
-	wantRoutes   = 115 // B39.14: +4 — the owner-only workspace webhook routes (declared)
+	wantRoutes   = 117 // B39.32: +2 — a member's own notification preferences (declared)
 	wantGated    = 73
-	wantDeclared = 42
+	wantDeclared = 44
 )
 
 func TestRoutePermissionEnforcers_ArePinnedAsAPopulation(t *testing.T) {

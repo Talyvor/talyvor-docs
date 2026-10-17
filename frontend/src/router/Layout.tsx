@@ -99,7 +99,7 @@ function useBreadcrumbs(
   if (pathname === paths.stale()) return [{ label: "Needs review" }];
   if (pathname === paths.templates()) return [{ label: "Templates" }];
   if (pathname === paths.approvals()) return [{ label: "Approvals" }];
-  if (pathname === paths.domains()) return [{ label: "Custom domains" }];
+  if (pathname === paths.domains()) return [{ label: "Settings" }];
   if (!spaceID) return [];
   const spaceLabel = space?.name || "Space";
   const crumbs = [{ label: spaceLabel, onClick: () => navigate(paths.space(spaceID)) }];
