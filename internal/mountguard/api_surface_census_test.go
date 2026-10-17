@@ -512,6 +512,8 @@ var routesWithNoSPACaller = map[string]string{
 	"POST /v1/workspaces/{}/webhooks":           "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
 	"POST /v1/workspaces/{}/webhooks/{}/rotate": "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
 	"DELETE /v1/workspaces/{}/webhooks/{}":      "talyvor-suite Settings → Webhooks, through its BFF (B39.25) — internal/webhooks",
+	"GET /v1/workspaces/{}/email-branding":      "talyvor-suite Settings → Email branding, through its BFF (B39.34) — internal/email",
+	"PUT /v1/workspaces/{}/email-branding":      "talyvor-suite Settings → Email branding, through its BFF (B39.34) — internal/email",
 	"GET /v1/workspaces/{}/changelog/feed":      "named in talyvor-suite/BFF-GAPS.md as a gap; not yet called",
 	// ⚠ A VERB-LEVEL ENTRY, AND THE REASON THE ESTATE TAGS SAY "PATH-LEVEL". frontend/src/api/
 	// changelog.ts PATCHes and DELETEs this exact path and never GETs it. A path-level search
