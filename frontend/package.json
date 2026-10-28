@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-leaks.mjs dist",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "rm -f .vitest-report.json && vitest run --reporter=default --reporter=json --outputFile=.vitest-report.json && node scripts/check-test-manifest.mjs",
@@ -48,7 +48,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "postcss-selector-parser": "^7.1.6"

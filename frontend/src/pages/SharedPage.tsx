@@ -3,6 +3,7 @@ import { ExternalLink, Lock } from "lucide-react";
 import { APIError } from "~/api/client";
 import { sharingApi, type PublicSharePayload } from "~/api/sharing";
 import { DocsBrand } from "~/components/ui/Brand";
+import { paths } from "~/router/paths";
 
 interface SharedPageProps {
   token: string;
@@ -91,7 +92,10 @@ export function SharedPage({ token }: SharedPageProps) {
       </main>
 
       <footer className="border-t border-border bg-surface px-4 py-2 text-center text-[10px] text-muted">
-        Powered by Talyvor Docs
+        Powered by Talyvor Docs ·{" "}
+        <a href={paths.security()} className="hover:text-text">
+          Report a vulnerability
+        </a>
       </footer>
       {password ? <span className="hidden" /> : null}
     </div>
