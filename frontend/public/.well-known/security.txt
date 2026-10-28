@@ -1,0 +1,4 @@
+# Found a security problem in Talyvor? Tell us: https://www.rfc-editor.org/rfc/rfc9116
+Contact: mailto:hello@talyvor.com
+Expires: 2027-10-01T00:00:00Z
+Preferred-Languages: en

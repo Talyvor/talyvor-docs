@@ -17,6 +17,7 @@ export const paths = {
   approvals: () => "/approvals",
   domains: () => "/domains",
   shared: (token: string) => `/s/${enc(token)}`,
+  security: () => "/security",
 
   // The patterns the router config registers. Kept beside the builders so the test can pin
   // that `space(id)` fills `/spaces/:spaceID` and not, say, `/spaces/:id` — a mismatch would

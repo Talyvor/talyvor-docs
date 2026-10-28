@@ -9,6 +9,7 @@ import { TemplateGalleryPage } from "~/pages/TemplateGallery";
 import { ApprovalInboxPage } from "~/pages/ApprovalInbox";
 import { DomainSettingsPage } from "~/pages/DomainSettings";
 import { SharedPage } from "~/pages/SharedPage";
+import { ReportVulnerabilityPage } from "~/pages/ReportVulnerability";
 import { usePage } from "~/hooks/usePage";
 import { useSpace, workspaceID as currentWorkspaceID } from "~/hooks/useSpaces";
 import type { Space } from "~/api/types";
@@ -45,6 +46,8 @@ export const routes: RouteObject[] = [
   // Public share viewer — no app chrome, its own top-level path (matches the pre-router
   // /s/:token behaviour and nginx's SPA fallback).
   { path: paths.patterns.shared, element: <SharedRoute /> },
+  // Public "Report a vulnerability" page, also outside the chrome.
+  { path: paths.security(), element: <ReportVulnerabilityPage /> },
 ];
 
 function HomeRoute() {
