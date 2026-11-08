@@ -59,7 +59,7 @@ func TestBrandedWorkspaceMailShowsItsNameLogoAndColour_RealPG(t *testing.T) {
 		}
 	}
 	stub, got := smtpStub(t)
-	if _, err := email.NewSink(d.Pool, stub).WithDefaultLogo("https://docs.example/email-logo.png").SendDue(ctx); err != nil {
+	if _, err := email.NewSink(d.Pool, stub).SendDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	mailTo := func(ws string) string {
@@ -79,8 +79,8 @@ func TestBrandedWorkspaceMailShowsItsNameLogoAndColour_RealPG(t *testing.T) {
 		}
 	}
 	unbranded := mailTo(plain)
-	for _, want := range []string{"From: Talyvor Docs <docs@talyvor.com>", "background:#060A12",
-		`<img src="https://docs.example/email-logo.png" alt="Talyvor"`} {
+	for _, want := range []string{"From: Talyvor Docs <docs@talyvor.com>", "background:#FFFFFF",
+		`<img src="https://docs.talyvor.com/talyvor-email-logo-on-light-400.png" alt="Talyvor" width="200"`} {
 		if !strings.Contains(unbranded, want) {
 			t.Fatalf("unbranded mail lacks %q:\n%s", want, unbranded)
 		}

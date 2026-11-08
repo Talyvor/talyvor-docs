@@ -7,8 +7,15 @@ import (
 	"strings"
 )
 
-// DefaultHeaderColor is Talyvor's Obsidian, the header of a workspace that set no colour.
+// DefaultHeaderColor is Talyvor's Obsidian, the header of a workspace that set a name or logo but no colour.
 const DefaultHeaderColor = "#060A12"
+
+// TalyvorHeaderColor is the header of a workspace that set nothing: white, so the logo's on-light PNG reads (B57.83).
+const TalyvorHeaderColor = "#FFFFFF"
+
+// TalyvorLogoURL is the logo kit's email PNG (design/logo/talyvor-logo/png/email), which Docs' front end serves
+// from frontend/public. It is shown 200 px wide: email apps do not show SVG.
+const TalyvorLogoURL = "https://docs.talyvor.com/talyvor-email-logo-on-light-400.png"
 
 // Brand is how one workspace's mail looks (B39.20). Name is empty for an unbranded workspace, which keeps the
 // configured From display name.
@@ -20,7 +27,7 @@ type Brand struct {
 // its from_name, and anything it left unset falls back to Talyvor's default.
 func (s *Sink) brandFor(fromName, color, logoURL string) Brand {
 	if fromName == "" && color == "" && logoURL == "" {
-		return Brand{Color: DefaultHeaderColor, LogoURL: s.defaultLogo}
+		return Brand{Color: TalyvorHeaderColor, LogoURL: s.defaultLogo}
 	}
 	if color == "" {
 		color = DefaultHeaderColor
@@ -32,11 +39,12 @@ var layout = template.Must(template.New("mail").Parse(`<!doctype html>
 <html><body style="margin:0;padding:0;background:#F4F7FB">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F7FB"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;border-radius:6px;overflow:hidden">
-<tr><td style="background:{{.Color}};padding:20px 24px">{{if .LogoURL}}<img src="{{.LogoURL}}" alt="{{.Alt}}" height="32" style="display:block;height:32px;max-width:100%;border:0">{{else}}<span style="font-family:'Space Grotesk',Arial,sans-serif;font-size:20px;font-weight:600;color:{{.Ink}}">{{.Name}}</span>{{end}}</td></tr>
+<tr><td style="background:{{.Color}};padding:20px 24px">{{if .LogoURL}}{{if .Name}}<img src="{{.LogoURL}}" alt="{{.Alt}}" height="32" style="display:block;height:32px;max-width:100%;border:0">{{else}}<img src="{{.LogoURL}}" alt="{{.Alt}}" width="200" height="64" style="display:block;width:200px;height:auto;border:0">{{end}}{{else}}<span style="font-family:'Space Grotesk',Arial,sans-serif;font-size:20px;font-weight:600;color:{{.Ink}}">{{.Name}}</span>{{end}}</td></tr>
 <tr><td style="padding:24px;font-family:'Space Grotesk',Arial,sans-serif;font-size:15px;line-height:1.5;color:#060A12;white-space:pre-wrap">{{.Body}}</td></tr>
 </table></td></tr></table></body></html>`))
 
-// render is the HTML part of a mail: the brand's colour and logo (or name) in the header, the text body below.
+// render is the HTML part of a mail: the brand's colour and logo (or name) in the header, the text body below. A
+// mail with no workspace name is Talyvor's own, whose logo is drawn 200 px wide.
 func render(b Brand, body string) string {
 	alt := b.Name
 	if alt == "" {
