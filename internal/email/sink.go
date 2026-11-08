@@ -36,10 +36,10 @@ type Sink struct {
 }
 
 func NewSink(pool *pgxpool.Pool, sender Sender) *Sink {
-	return &Sink{pool: pool, sender: sender, kick: make(chan struct{}, 1)}
+	return &Sink{pool: pool, sender: sender, kick: make(chan struct{}, 1), defaultLogo: TalyvorLogoURL}
 }
 
-// WithDefaultLogo sets the logo in an unbranded workspace's mail header; only an https URL is used.
+// WithDefaultLogo replaces TalyvorLogoURL in an unbranded workspace's mail header; only an https URL is used.
 func (s *Sink) WithDefaultLogo(url string) *Sink {
 	if strings.HasPrefix(url, "https://") {
 		s.defaultLogo = url

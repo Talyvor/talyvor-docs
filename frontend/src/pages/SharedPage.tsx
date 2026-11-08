@@ -55,7 +55,7 @@ export function SharedPage({ token }: SharedPageProps) {
   return (
     <div className="flex min-h-screen flex-col bg-bg text-text">
       <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-2 text-xs">
-        <DocsBrand size="sm" />
+        <DocsBrand />
         <a
           href="https://talyvor.com"
           className="flex items-center gap-1 text-muted hover:text-text"
