@@ -9,6 +9,10 @@ const IGNORED = {
   // braces <=3.0.3 (via tailwindcss 3 > chokidar/micromatch): no patched braces release exists
   // (3.0.3 is the latest); the only way out is tailwindcss 4, a rewrite of the styling setup.
   "GHSA-vfj7-8cjw-p6xm": "braces: no patched release",
+  // picomatch <=4.0.7 ReDoS (via vite, vitest, tailwindcss 3 > chokidar/micromatch): no patched
+  // picomatch release exists (4.0.7 is the latest). Build- and test-time only: the globs are our
+  // own config's, never a user's, and picomatch is not in the shipped bundle.
+  "GHSA-fc5q-39xc-vjpf": "picomatch: no patched release",
 };
 
 let out;

@@ -15,16 +15,16 @@ go 1.26.0
 // (its W6.34 first attempt merged nothing but an inert line until CI refused). actions/setup-go
 // exports GOTOOLCHAIN=local, so every job runs exactly the version its `go-version:` pin
 // installed and this directive is NOT auto-fetched there. It governs LOCAL builds and the Docker
-// build; ci.yaml's pin governs CI. Both are 1.26.10 and internal/toolchainguard
+// build; ci.yaml's pin governs CI. Both are 1.26.11 and internal/toolchainguard
 // asserts the lockstep.
 //
 // ⚠ WHY THIS REPO NEVER NOTICED: it has no govulncheck job. talyvor-lens gates on one every
 // build and reports zero called; docs and track did not and reported 10 and 11. Adding the gate
 // here is W6.33 and needs the remaining advisory decided first, or it lands red on main.
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.2
