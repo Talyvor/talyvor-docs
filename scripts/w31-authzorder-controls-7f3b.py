@@ -119,7 +119,7 @@ def full_suite():
     failing = set()
     for line in (r.stdout + r.stderr).splitlines():
         m = re.match(r"^(?:FAIL|---\s+FAIL)\s+(\S+)", line)
-        if m and m.group(1).startswith("github.com/"):
+        if m and m.group(1).split("/", 1)[0] == "github.com":
             failing.add(m.group(1))
     return r.returncode == 0, failing, (r.stdout + r.stderr)[-1500:]
 

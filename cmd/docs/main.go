@@ -600,11 +600,7 @@ func main() {
 	go saver.Start(ctx)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(30 * time.Second))
-	r.Use(metricsMiddleware)
+	useBaseMiddleware(r)
 
 	// LIVENESS: deliberately DB-free. Restarting a process cannot fix a database outage, so
 	// making this probe DB-aware would crash-loop every replica during a blip — turning a
@@ -797,6 +793,16 @@ func listenHostname(addr string) string {
 		return addr[:i]
 	}
 	return addr
+}
+
+// useBaseMiddleware is the stack every Docs request goes through. It has no middleware.RealIP:
+// that rewrote r.RemoteAddr from True-Client-IP, X-Real-IP or X-Forwarded-For, whichever a
+// client sent, so a request could name any address it liked (GHSA-3fxj-6jh8-hvhx).
+func useBaseMiddleware(r chi.Router) {
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(metricsMiddleware)
 }
 
 // metricsMiddleware records request count + latency. Cardinality is

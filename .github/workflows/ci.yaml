@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege by default: a job that needs more says so in its own block.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -178,6 +182,8 @@ jobs:
   # the Go suite rather than being buried behind it.
   vuln:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
